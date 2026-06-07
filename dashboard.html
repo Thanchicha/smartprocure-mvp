@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartProcure — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style-dashboard.css" />
+</head>
+<body>
+
+  <!-- ── Navbar ── -->
+  <header class="navbar">
+    <div class="navbar-brand">
+      <div class="nav-logo">SP</div>
+      <div>
+        <span class="nav-title">SmartProcure</span>
+        <span class="nav-tag" data-i18n="nav.tagline">Hotel Food Order Calculator</span>
+      </div>
+    </div>
+    <div class="navbar-right">
+      <button id="lang-btn" onclick="toggleLang()" class="lang-btn">EN</button>
+      <button onclick="handleLogout()" class="btn-ghost" data-i18n="nav.logout">ออกจากระบบ →</button>
+    </div>
+  </header>
+
+  <!-- ── Duplicate Modal ── -->
+  <div id="dup-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-icon">⚠️</div>
+      <h3 class="modal-title" data-i18n="modal.dupTitle">มีวัตถุดิบนี้อยู่แล้ว</h3>
+      <div id="modal-body" class="modal-body"></div>
+      <button class="btn-cta" onclick="closeDupModal()" data-i18n="modal.ok">ตกลง</button>
+    </div>
+  </div>
+
+  <!-- ── Main ── -->
+  <main class="main-wrap">
+
+    <!-- Page Title -->
+    <div class="page-hd">
+      <h1 class="page-title" data-i18n="dash.title">Hotel Food Order Calculator</h1>
+      <p class="page-sub" data-i18n="dash.sub">คำนวณยอดสั่งวัตถุดิบตามจำนวนผู้เข้าพัก — แม่นยำ ±5% ลดของเหลือ</p>
+    </div>
+
+    <!-- Hotel Inputs -->
+    <section class="card">
+      <h2 class="card-title" data-i18n="dash.hotelInfo">ข้อมูลโรงแรม</h2>
+      <div class="input-grid">
+        <div class="field-group">
+          <label class="field-label" data-i18n="dash.totalRooms">จำนวนห้องทั้งหมด</label>
+          <input id="total-rooms" type="number" value="80" min="1" class="field-input" oninput="recalculate()" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" data-i18n="dash.occupancy">Occupancy Rate (%)</label>
+          <input id="occupancy-rate" type="number" value="75" min="0" max="100" class="field-input" oninput="recalculate()" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" data-i18n="dash.guestsPerRoom">ผู้เข้าพัก / ห้อง</label>
+          <input id="guests-per-room" type="number" value="1.8" min="0.1" step="0.1" class="field-input" oninput="recalculate()" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" data-i18n="dash.buffer">Buffer เผื่อขาด</label>
+          <select id="buffer-rate" class="field-input" onchange="recalculate()">
+            <option value="3">3%</option>
+            <option value="5" selected>5%</option>
+            <option value="8">8%</option>
+            <option value="10">10%</option>
+          </select>
+        </div>
+      </div>
+      <p id="hotel-summary" class="summary-note"></p>
+    </section>
+
+    <!-- Meal Tabs -->
+    <section class="card">
+      <h2 class="card-title" data-i18n="dash.selectMeal">เลือกมื้ออาหาร</h2>
+      <div class="tab-row" id="meal-tabs">
+        <button class="tab active" data-meal="breakfast" onclick="selectMeal('breakfast')" data-i18n="dash.breakfast">เช้า (Breakfast)</button>
+        <button class="tab" data-meal="lunch" onclick="selectMeal('lunch')" data-i18n="dash.lunch">กลางวัน (Lunch)</button>
+        <button class="tab" data-meal="dinner" onclick="selectMeal('dinner')" data-i18n="dash.dinner">เย็น (Dinner)</button>
+      </div>
+      <p id="meal-summary" class="summary-note"></p>
+    </section>
+
+    <!-- Summary Cards -->
+    <div class="cards-grid" id="summary-cards">
+      <div class="stat-card blue">
+        <p class="stat-label" data-i18n="dash.cardGuests">ผู้รับประทานมื้อนี้</p>
+        <p class="stat-value" id="card-guests">—</p>
+        <p class="stat-unit" data-i18n="dash.unitPerson">คน</p>
+      </div>
+      <div class="stat-card indigo">
+        <p class="stat-label" data-i18n="dash.cardBase">ฐานที่ต้องการ</p>
+        <p class="stat-value" id="card-base">—</p>
+        <p class="stat-unit" data-i18n="dash.unitKg">กก.</p>
+      </div>
+      <div class="stat-card green">
+        <p class="stat-label" id="card-rec-label" data-i18n="dash.cardRec">แนะนำสั่ง (+5%)</p>
+        <p class="stat-value" id="card-rec">—</p>
+        <p class="stat-unit" data-i18n="dash.unitKg">กก.</p>
+      </div>
+      <div class="stat-card amber">
+        <p class="stat-label" data-i18n="dash.cardCost">ค่าใช้จ่ายมื้อนี้</p>
+        <p class="stat-value" id="card-cost">—</p>
+        <p class="stat-unit">฿</p>
+      </div>
+    </div>
+
+    <!-- Ingredients Table / Accordion -->
+    <section class="card no-pad">
+      <div class="table-hd">
+        <h2 class="card-title" style="margin:0" data-i18n="dash.ingredients">รายการวัตถุดิบ</h2>
+        <button onclick="exportCSV()" class="btn-cta" data-i18n="dash.export">↓ Export CSV</button>
+      </div>
+
+      <!-- Desktop table (≥1024px) -->
+      <div class="table-wrap desktop-only">
+        <table class="data-table" id="ing-table">
+          <thead>
+            <tr>
+              <th data-i18n="th.name">วัตถุดิบ</th>
+              <th data-i18n="th.category">หมวด</th>
+              <th class="tc" data-i18n="th.grams">กรัม/คน</th>
+              <th class="tr" data-i18n="th.base">ฐาน (กก.)</th>
+              <th class="tr" data-i18n="th.rec">แนะนำสั่ง (กก.)</th>
+              <th class="tc" data-i18n="th.buffer">% เผื่อ</th>
+              <th class="tr" data-i18n="th.price">ราคา/กก. (฿)</th>
+              <th class="tr" data-i18n="th.cost">ค่าใช้จ่าย (฿)</th>
+              <th style="width:64px"></th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+        <div id="empty-msg" class="empty-state hidden" data-i18n="dash.empty">ยังไม่มีรายการ กรุณาเพิ่มวัตถุดิบด้านล่าง</div>
+      </div>
+
+      <!-- Mobile/Tablet accordion (<1024px) -->
+      <div id="accordion-wrap" class="accordion-wrap mobile-tablet-only"></div>
+
+      <!-- Add Item -->
+      <div class="add-row">
+        <div class="add-fields">
+          <div class="field-group grow">
+            <label class="field-label" data-i18n="dash.newName">ชื่อวัตถุดิบ</label>
+            <div class="autocomplete-wrap">
+              <input id="new-name" type="text" class="field-input" placeholder="เช่น หมูสับ" />
+              <div class="autocomplete-drop" id="ac-drop"></div>
+            </div>
+          </div>
+          <div class="field-group" style="min-width:160px">
+            <label class="field-label" data-i18n="dash.newCat">หมวดหมู่</label>
+            <select id="new-cat" class="field-input">
+              <option value="ชิ้นส่วนหมู">ชิ้นส่วนหมู</option>
+              <option value="หมูแปรรูป">หมูแปรรูป</option>
+              <option value="หมูกระทะ/ชาบู">หมูกระทะ/ชาบู</option>
+              <option value="ไก่/แปรรูป">ไก่/แปรรูป</option>
+              <option value="ชิ้นส่วนวัว">ชิ้นส่วนวัว</option>
+              <option value="วัว/แปรรูป">วัว/แปรรูป</option>
+              <option value="เป็ด/แปรรูป">เป็ด/แปรรูป</option>
+              <option value="กุ้ง">กุ้ง</option>
+              <option value="หมึก">หมึก</option>
+              <option value="ปู">ปู</option>
+              <option value="ลูกชิ้น/ไส้กรอก & ของทานเล่น">ลูกชิ้น/ไส้กรอก & ของทานเล่น</option>
+            </select>
+          </div>
+          <div class="field-group" style="width:100px">
+            <label class="field-label" data-i18n="dash.newGrams">กรัม/คน</label>
+            <input id="new-grams" type="number" value="100" min="1" class="field-input" />
+          </div>
+          <div class="field-group" style="width:120px">
+            <label class="field-label" data-i18n="dash.newPrice">ราคา/กก. (฿)</label>
+            <input id="new-price" type="number" value="0" min="0" class="field-input" />
+          </div>
+          <button onclick="addItem()" class="btn-cta" style="align-self:flex-end;white-space:nowrap" data-i18n="dash.addBtn">+ เพิ่มรายการ</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Daily Summary -->
+    <section class="card">
+      <h2 class="card-title" data-i18n="dash.dailySummary">สรุปทั้งวัน</h2>
+      <div class="cards-grid" id="daily-cards"></div>
+      <div class="charts-row">
+        <div>
+          <p class="chart-title" data-i18n="dash.chartBar">กก. น้ำหนักรวม แยกมื้อ</p>
+          <div id="bar-chart" class="bar-chart"></div>
+        </div>
+        <div class="pie-section">
+          <p class="chart-title" data-i18n="dash.chartPie">สัดส่วนหมวดหมู่รวมทั้งวัน</p>
+          <div class="pie-wrap">
+            <canvas id="pie-canvas" width="160" height="160" class="pie-canvas"></canvas>
+            <div id="pie-legend" class="pie-legend"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="footer" data-i18n="dash.footer">SmartProcure © 2024 by ปะการัง Supply — สูตร: (กรัม/คน × ผู้รับประทาน / 1000) × (1 + Buffer%)</p>
+  </main>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

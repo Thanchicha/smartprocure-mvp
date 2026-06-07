@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SmartProcure — Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style-login.css" />
+  </head>
+  <body>
+    <div class="page-wrap">
+      <!-- Language Toggle -->
+      <div class="lang-bar">
+        <button id="lang-btn" onclick="toggleLang()" class="lang-btn">
+          EN
+        </button>
+      </div>
+
+      <div class="login-card">
+        <!-- Brand -->
+        <div class="brand">
+          <div class="brand-logo">SP</div>
+          <h1 class="brand-name">SmartProcure</h1>
+          <p class="brand-sub" data-i18n="login.subtitle">
+            Hotel Food Order Calculator
+          </p>
+          <p class="brand-credit" data-i18n="login.credit">by ปะการัง Supply</p>
+        </div>
+
+        <!-- Form -->
+        <form id="login-form" onsubmit="handleLogin(event)">
+          <h2 class="form-heading" data-i18n="login.heading">เข้าสู่ระบบ</h2>
+          <p class="form-sub" data-i18n="login.subheading">
+            กรอกข้อมูลบัญชีผู้ใช้ของคุณ
+          </p>
+
+          <div class="field-group">
+            <label class="field-label" data-i18n="login.username"
+              >Username</label
+            >
+            <input
+              id="inp-user"
+              type="text"
+              class="field-input"
+              placeholder="admin"
+              required
+            />
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" data-i18n="login.password"
+              >Password</label
+            >
+            <div class="pw-wrap">
+              <input
+                id="inp-pass"
+                type="password"
+                class="field-input"
+                placeholder="••••••••"
+                required
+              />
+              <button type="button" class="pw-eye" onclick="togglePw()">
+                👁
+              </button>
+            </div>
+          </div>
+
+          <div id="login-err" class="err-box hidden" data-i18n="login.error">
+            Username หรือ Password ไม่ถูกต้อง
+          </div>
+
+          <button
+            type="submit"
+            id="login-btn"
+            class="btn-cta full"
+            data-i18n="login.submit"
+          >
+            เข้าสู่ระบบ
+          </button>
+        </form>
+
+        <div class="demo-hint">
+          Demo: <code>admin</code> / <code>password</code>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/i18n.js"></script>
+    <script src="js/db.js"></script>
+    <script src="js/auth.js"></script>
+  </body>
+</html>
