@@ -11,197 +11,307 @@
 <body>
 
   <!-- ── Navbar ── -->
-  <header class="navbar">
+  <nav class="navbar">
     <div class="navbar-brand">
       <div class="nav-logo">SP</div>
-      <div>
-        <span class="nav-title">SmartProcure</span>
-        <span class="nav-tag" data-i18n="nav.tagline">Hotel Food Order Calculator</span>
-      </div>
+      <span class="nav-title">SmartProcure</span>
+      <span class="nav-tag">Hotel Food Order Calculator</span>
     </div>
-    <div class="navbar-right">
-      <button id="lang-btn" onclick="toggleLang()" class="lang-btn">EN</button>
-      <button onclick="handleLogout()" class="btn-ghost" data-i18n="nav.logout">ออกจากระบบ →</button>
-    </div>
-  </header>
-
-  <!-- ── Duplicate Modal ── -->
-  <div id="dup-modal" class="modal-overlay hidden">
-    <div class="modal-card">
-      <div class="modal-icon">⚠️</div>
-      <h3 class="modal-title" data-i18n="modal.dupTitle">มีวัตถุดิบนี้อยู่แล้ว</h3>
-      <div id="modal-body" class="modal-body"></div>
-      <button class="btn-cta" onclick="closeDupModal()" data-i18n="modal.ok">ตกลง</button>
-    </div>
-  </div>
+    <button onclick="handleLogout()" class="btn-ghost">ออกจากระบบ</button>
+  </nav>
 
   <!-- ── Main ── -->
-  <main class="main-wrap">
+  <div class="main-wrap">
 
-    <!-- Page Title -->
+    <!-- Page Header -->
     <div class="page-hd">
-      <h1 class="page-title" data-i18n="dash.title">Hotel Food Order Calculator</h1>
-      <p class="page-sub" data-i18n="dash.sub">คำนวณยอดสั่งวัตถุดิบตามจำนวนผู้เข้าพัก — แม่นยำ ±5% ลดของเหลือ</p>
+      <h1 class="page-title">คำนวณวัตถุดิบ</h1>
+      <p class="page-sub">ประมาณการสั่งซื้อวัตถุดิบตามจำนวนแขก</p>
     </div>
 
-    <!-- Hotel Inputs -->
-    <section class="card">
-      <h2 class="card-title" data-i18n="dash.hotelInfo">ข้อมูลโรงแรม</h2>
+    <!-- Hotel Config -->
+    <div class="card">
+      <p class="card-title">ข้อมูลโรงแรม</p>
       <div class="input-grid">
         <div class="field-group">
-          <label class="field-label" data-i18n="dash.totalRooms">จำนวนห้องทั้งหมด</label>
-          <input id="total-rooms" type="number" value="80" min="1" class="field-input" oninput="recalculate()" />
+          <label class="field-label">จำนวนห้องทั้งหมด</label>
+          <input id="total-rooms" type="number" class="field-input" value="80" min="1" oninput="recalculate()" />
         </div>
         <div class="field-group">
-          <label class="field-label" data-i18n="dash.occupancy">Occupancy Rate (%)</label>
-          <input id="occupancy-rate" type="number" value="75" min="0" max="100" class="field-input" oninput="recalculate()" />
+          <label class="field-label">อัตราการเข้าพัก (%)</label>
+          <input id="occupancy-rate" type="number" class="field-input" value="75" min="0" max="100" oninput="recalculate()" />
         </div>
         <div class="field-group">
-          <label class="field-label" data-i18n="dash.guestsPerRoom">ผู้เข้าพัก / ห้อง</label>
-          <input id="guests-per-room" type="number" value="1.8" min="0.1" step="0.1" class="field-input" oninput="recalculate()" />
+          <label class="field-label">แขกต่อห้อง</label>
+          <input id="guests-per-room" type="number" class="field-input" value="1.8" min="1" step="0.1" oninput="recalculate()" />
         </div>
         <div class="field-group">
-          <label class="field-label" data-i18n="dash.buffer">Buffer เผื่อขาด</label>
-          <select id="buffer-rate" class="field-input" onchange="recalculate()">
-            <option value="3">3%</option>
-            <option value="5" selected>5%</option>
-            <option value="8">8%</option>
-            <option value="10">10%</option>
-          </select>
+          <label class="field-label">% เผื่อสูญเสีย (Trim/Waste)</label>
+          <input id="buffer-rate" type="number" class="field-input" value="5" min="0" max="50" oninput="recalculate()" />
         </div>
       </div>
-      <p id="hotel-summary" class="summary-note"></p>
-    </section>
+      <p class="summary-note">
+        <span id="hotel-summary"></span><br/>
+        <span id="meal-summary"></span>
+      </p>
+    </div>
+
+    <!-- ── ตั้งค่ามื้ออาหาร ── -->
+    <div class="card">
+      <p class="card-title">ตั้งค่ามื้ออาหาร</p>
+      <p class="page-sub" style="margin-bottom:1rem;margin-top:-0.5rem">กำหนดสัดส่วนแขกและตัวคูณบุฟเฟต์สำหรับแต่ละมื้อ</p>
+      <div id="meal-config-cards" class="meal-cfg-grid"></div>
+    </div>
 
     <!-- Meal Tabs -->
-    <section class="card">
-      <h2 class="card-title" data-i18n="dash.selectMeal">เลือกมื้ออาหาร</h2>
+    <div class="card" style="padding:1rem 1.25rem;">
+      <p class="card-title">เลือกมื้ออาหาร</p>
       <div class="tab-row" id="meal-tabs">
-        <button class="tab active" data-meal="breakfast" onclick="selectMeal('breakfast')" data-i18n="dash.breakfast">เช้า (Breakfast)</button>
-        <button class="tab" data-meal="lunch" onclick="selectMeal('lunch')" data-i18n="dash.lunch">กลางวัน (Lunch)</button>
-        <button class="tab" data-meal="dinner" onclick="selectMeal('dinner')" data-i18n="dash.dinner">เย็น (Dinner)</button>
+        <button class="tab active" data-meal="breakfast" onclick="selectMeal('breakfast')">☀️ เช้า</button>
+        <button class="tab" data-meal="lunch" onclick="selectMeal('lunch')">🌤 กลางวัน</button>
+        <button class="tab" data-meal="dinner" onclick="selectMeal('dinner')">🌙 เย็น</button>
       </div>
-      <p id="meal-summary" class="summary-note"></p>
-    </section>
+    </div>
 
     <!-- Summary Cards -->
-    <div class="cards-grid" id="summary-cards">
+    <div class="cards-grid">
       <div class="stat-card blue">
-        <p class="stat-label" data-i18n="dash.cardGuests">ผู้รับประทานมื้อนี้</p>
+        <p class="stat-label">จำนวนแขก (มื้อนี้)</p>
         <p class="stat-value" id="card-guests">—</p>
-        <p class="stat-unit" data-i18n="dash.unitPerson">คน</p>
+        <p class="stat-unit">คน</p>
       </div>
       <div class="stat-card indigo">
-        <p class="stat-label" data-i18n="dash.cardBase">ฐานที่ต้องการ</p>
+        <p class="stat-label">ฐาน (กก.)</p>
         <p class="stat-value" id="card-base">—</p>
-        <p class="stat-unit" data-i18n="dash.unitKg">กก.</p>
+        <p class="stat-unit">กก.</p>
       </div>
       <div class="stat-card green">
-        <p class="stat-label" id="card-rec-label" data-i18n="dash.cardRec">แนะนำสั่ง (+5%)</p>
+        <p class="stat-label" id="card-rec-label">แนะนำสั่ง (+5%)</p>
         <p class="stat-value" id="card-rec">—</p>
-        <p class="stat-unit" data-i18n="dash.unitKg">กก.</p>
+        <p class="stat-unit">กก.</p>
       </div>
       <div class="stat-card amber">
-        <p class="stat-label" data-i18n="dash.cardCost">ค่าใช้จ่ายมื้อนี้</p>
+        <p class="stat-label">ค่าใช้จ่ายประมาณ</p>
         <p class="stat-value" id="card-cost">—</p>
         <p class="stat-unit">฿</p>
       </div>
     </div>
 
-    <!-- Ingredients Table / Accordion -->
-    <section class="card no-pad">
+    <!-- Ingredient Table / Accordion -->
+    <div class="card no-pad">
       <div class="table-hd">
-        <h2 class="card-title" style="margin:0" data-i18n="dash.ingredients">รายการวัตถุดิบ</h2>
-        <button onclick="exportCSV()" class="btn-cta" data-i18n="dash.export">↓ Export CSV</button>
+        <span class="card-title" style="margin:0">รายการวัตถุดิบ</span>
+        <button class="btn-cta" onclick="exportCSV()">↓ ส่งออก CSV</button>
       </div>
 
-      <!-- Desktop table (≥1024px) -->
-      <div class="table-wrap desktop-only">
-        <table class="data-table" id="ing-table">
+      <!-- Desktop Table (≥1024px) -->
+      <div class="table-wrap desktop-table">
+        <table class="data-table">
           <thead>
             <tr>
-              <th data-i18n="th.name">วัตถุดิบ</th>
-              <th data-i18n="th.category">หมวด</th>
-              <th class="tc" data-i18n="th.grams">กรัม/คน</th>
-              <th class="tr" data-i18n="th.base">ฐาน (กก.)</th>
-              <th class="tr" data-i18n="th.rec">แนะนำสั่ง (กก.)</th>
-              <th class="tc" data-i18n="th.buffer">% เผื่อ</th>
-              <th class="tr" data-i18n="th.price">ราคา/กก. (฿)</th>
-              <th class="tr" data-i18n="th.cost">ค่าใช้จ่าย (฿)</th>
-              <th style="width:64px"></th>
+              <th>ชื่อวัตถุดิบ</th>
+              <th>หมวดหมู่</th>
+              <th class="tc">กรัม/คน</th>
+              <th class="tr">แขก (คน)</th>
+              <th class="tr">ฐาน (กก.)</th>
+              <th class="tr">แนะนำสั่ง (กก.)</th>
+              <th class="tr">ราคา/กก.</th>
+              <th class="tr">ค่าใช้จ่าย (฿)</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="table-body"></tbody>
         </table>
-        <div id="empty-msg" class="empty-state hidden" data-i18n="dash.empty">ยังไม่มีรายการ กรุณาเพิ่มวัตถุดิบด้านล่าง</div>
+        <div id="empty-msg" class="empty-state hidden">ยังไม่มีรายการวัตถุดิบสำหรับมื้อนี้</div>
       </div>
 
-      <!-- Mobile/Tablet accordion (<1024px) -->
-      <div id="accordion-wrap" class="accordion-wrap mobile-tablet-only"></div>
+      <!-- Accordion (mobile / tablet) -->
+      <div id="accordion-list" class="accordion-list"></div>
 
-      <!-- Add Item -->
+      <!-- Add Item Row -->
       <div class="add-row">
+        <p class="card-title" style="margin-bottom:0.875rem">เพิ่มวัตถุดิบ</p>
         <div class="add-fields">
-          <div class="field-group grow">
-            <label class="field-label" data-i18n="dash.newName">ชื่อวัตถุดิบ</label>
-            <div class="autocomplete-wrap">
-              <input id="new-name" type="text" class="field-input" placeholder="เช่น หมูสับ" />
-              <div class="autocomplete-drop" id="ac-drop"></div>
-            </div>
+          <div class="field-group" style="flex:1;min-width:140px">
+            <label class="field-label">ชื่อวัตถุดิบ</label>
+            <input id="new-name" type="text" class="field-input" placeholder="ค้นหาหรือกรอกใหม่..." />
           </div>
-          <div class="field-group" style="min-width:160px">
-            <label class="field-label" data-i18n="dash.newCat">หมวดหมู่</label>
+          <div class="field-group" style="min-width:150px">
+            <label class="field-label">หมวดหมู่</label>
             <select id="new-cat" class="field-input">
-              <option value="ชิ้นส่วนหมู">ชิ้นส่วนหมู</option>
-              <option value="หมูแปรรูป">หมูแปรรูป</option>
-              <option value="หมูกระทะ/ชาบู">หมูกระทะ/ชาบู</option>
-              <option value="ไก่/แปรรูป">ไก่/แปรรูป</option>
-              <option value="ชิ้นส่วนวัว">ชิ้นส่วนวัว</option>
-              <option value="วัว/แปรรูป">วัว/แปรรูป</option>
-              <option value="เป็ด/แปรรูป">เป็ด/แปรรูป</option>
-              <option value="กุ้ง">กุ้ง</option>
-              <option value="หมึก">หมึก</option>
-              <option value="ปู">ปู</option>
-              <option value="ลูกชิ้น/ไส้กรอก & ของทานเล่น">ลูกชิ้น/ไส้กรอก & ของทานเล่น</option>
+              <option>ชิ้นส่วนหมู</option><option>หมูแปรรูป</option><option>หมูกระทะ/ชาบู</option>
+              <option>ไก่/แปรรูป</option><option>ชิ้นส่วนวัว</option><option>วัว/แปรรูป</option>
+              <option>เป็ด/แปรรูป</option><option>กุ้ง</option><option>หมึก</option><option>ปู</option>
+              <option>ลูกชิ้น/ไส้กรอก & ของทานเล่น</option>
             </select>
           </div>
-          <div class="field-group" style="width:100px">
-            <label class="field-label" data-i18n="dash.newGrams">กรัม/คน</label>
-            <input id="new-grams" type="number" value="100" min="1" class="field-input" />
+          <div class="field-group" style="min-width:110px">
+            <label class="field-label">ราคา/กก. (฿)</label>
+            <input id="new-price" type="number" class="field-input" value="0" min="0" />
           </div>
-          <div class="field-group" style="width:120px">
-            <label class="field-label" data-i18n="dash.newPrice">ราคา/กก. (฿)</label>
-            <input id="new-price" type="number" value="0" min="0" class="field-input" />
+        </div>
+
+        <!-- Meal checkboxes + grams -->
+        <div class="new-meal-rows" style="margin-top:0.875rem">
+          <p class="field-label" style="margin-bottom:0.5rem">มื้อที่ใช้ & กรัม/คน</p>
+          <div class="new-meal-grid">
+            <!-- Breakfast -->
+            <div class="new-meal-item">
+              <label class="meal-cb-label">
+                <input type="checkbox" id="new-cb-breakfast" onchange="toggleNewGrams('breakfast')" />
+                <span>☀️ เช้า</span>
+              </label>
+              <div id="new-grams-row-breakfast" class="new-grams-row hidden">
+                <input id="new-g-breakfast" type="number" class="field-input" value="100" min="0" style="width:80px" />
+                <span class="field-label" style="margin:0">กรัม/คน</span>
+              </div>
+            </div>
+            <!-- Lunch -->
+            <div class="new-meal-item">
+              <label class="meal-cb-label">
+                <input type="checkbox" id="new-cb-lunch" onchange="toggleNewGrams('lunch')" />
+                <span>🌤 กลางวัน</span>
+              </label>
+              <div id="new-grams-row-lunch" class="new-grams-row hidden">
+                <input id="new-g-lunch" type="number" class="field-input" value="100" min="0" style="width:80px" />
+                <span class="field-label" style="margin:0">กรัม/คน</span>
+              </div>
+            </div>
+            <!-- Dinner -->
+            <div class="new-meal-item">
+              <label class="meal-cb-label">
+                <input type="checkbox" id="new-cb-dinner" onchange="toggleNewGrams('dinner')" />
+                <span>🌙 เย็น</span>
+              </label>
+              <div id="new-grams-row-dinner" class="new-grams-row hidden">
+                <input id="new-g-dinner" type="number" class="field-input" value="100" min="0" style="width:80px" />
+                <span class="field-label" style="margin:0">กรัม/คน</span>
+              </div>
+            </div>
           </div>
-          <button onclick="addItem()" class="btn-cta" style="align-self:flex-end;white-space:nowrap" data-i18n="dash.addBtn">+ เพิ่มรายการ</button>
+        </div>
+
+        <div style="margin-top:1rem">
+          <button class="btn-cta" onclick="addItem()">+ เพิ่มรายการ</button>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- Daily Summary -->
-    <section class="card">
-      <h2 class="card-title" data-i18n="dash.dailySummary">สรุปทั้งวัน</h2>
-      <div class="cards-grid" id="daily-cards"></div>
+    <!-- Daily Summary & Charts -->
+    <div class="card">
+      <p class="card-title">สรุปรายวัน</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.875rem" id="daily-cards"></div>
+
       <div class="charts-row">
         <div>
-          <p class="chart-title" data-i18n="dash.chartBar">กก. น้ำหนักรวม แยกมื้อ</p>
-          <div id="bar-chart" class="bar-chart"></div>
+          <p class="chart-title">ปริมาณวัตถุดิบ (กก.) ต่อมื้อ</p>
+          <div class="bar-chart" id="bar-chart"></div>
         </div>
-        <div class="pie-section">
-          <p class="chart-title" data-i18n="dash.chartPie">สัดส่วนหมวดหมู่รวมทั้งวัน</p>
+        <div>
+          <p class="chart-title">สัดส่วนตามหมวดหมู่ (รวมทุกมื้อ)</p>
           <div class="pie-wrap">
-            <canvas id="pie-canvas" width="160" height="160" class="pie-canvas"></canvas>
-            <div id="pie-legend" class="pie-legend"></div>
+            <canvas id="pie-canvas" class="pie-canvas" width="160" height="160"></canvas>
+            <div class="pie-legend" id="pie-legend"></div>
           </div>
         </div>
       </div>
-    </section>
+    </div>
 
-    <p class="footer" data-i18n="dash.footer">SmartProcure © 2024 by ปะการัง Supply — สูตร: (กรัม/คน × ผู้รับประทาน / 1000) × (1 + Buffer%)</p>
-  </main>
+    <p class="footer">SmartProcure © 2024 — ปะการัง Supply</p>
+  </div>
 
-  <script src="js/i18n.js"></script>
-  <script src="js/db.js"></script>
+  <!-- ── Duplicate Modal ── -->
+  <div id="dup-modal" class="modal-overlay hidden" onclick="closeDupModal(event)">
+    <div class="modal-card" style="max-width:400px">
+      <div style="text-align:center;margin-bottom:1rem">
+        <span style="font-size:2.5rem">⚠️</span>
+        <h3 style="font-size:1.125rem;font-weight:700;color:var(--navy);margin-top:0.5rem">มีวัตถุดิบนี้อยู่แล้ว</h3>
+      </div>
+      <div id="dup-info" class="dup-info-box"></div>
+      <div style="text-align:center;margin-top:1.25rem">
+        <button class="btn-cta" onclick="closeDupModal()">ตกลง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Edit Modal ── -->
+  <div id="edit-modal" class="modal-overlay hidden" onclick="closeEditModal(event)">
+    <div class="modal-card" style="max-width:540px">
+      <div class="modal-header">
+        <h3 class="modal-title">แก้ไขวัตถุดิบ</h3>
+        <button class="modal-close" onclick="closeEditModal()">×</button>
+      </div>
+
+      <!-- Section 1: read-only -->
+      <div class="modal-section">
+        <div class="modal-row"><span class="modal-label">ชื่อวัตถุดิบ</span><span id="em-name" class="modal-value bold"></span></div>
+        <div class="modal-row"><span class="modal-label">หมวดหมู่</span><span id="em-cat" class="modal-value"></span></div>
+        <div class="modal-row"><span class="modal-label">ราคา/กก.</span><span id="em-price" class="modal-value"></span></div>
+      </div>
+
+      <!-- Section 2: meals checkboxes + grams -->
+      <div class="modal-section">
+        <p class="modal-section-title">มื้อที่ใช้ & กรัม/คน</p>
+
+        <!-- Breakfast -->
+        <div class="em-meal-row">
+          <label class="meal-cb-label">
+            <input type="checkbox" id="em-cb-breakfast" onchange="toggleEditMealRow('breakfast')" />
+            <span>☀️ เช้า</span>
+          </label>
+          <div id="em-grams-row-breakfast" class="em-grams-inline" style="display:none">
+            <input id="em-g-breakfast" type="number" class="field-input" min="0" style="width:90px"
+              oninput="updateEditCalc(getAllItems().find(i=>i.id===editingItemId)||{})" />
+            <span class="field-label" style="margin:0">กรัม/คน</span>
+          </div>
+        </div>
+        <!-- Lunch -->
+        <div class="em-meal-row">
+          <label class="meal-cb-label">
+            <input type="checkbox" id="em-cb-lunch" onchange="toggleEditMealRow('lunch')" />
+            <span>🌤 กลางวัน</span>
+          </label>
+          <div id="em-grams-row-lunch" class="em-grams-inline" style="display:none">
+            <input id="em-g-lunch" type="number" class="field-input" min="0" style="width:90px"
+              oninput="updateEditCalc(getAllItems().find(i=>i.id===editingItemId)||{})" />
+            <span class="field-label" style="margin:0">กรัม/คน</span>
+          </div>
+        </div>
+        <!-- Dinner -->
+        <div class="em-meal-row">
+          <label class="meal-cb-label">
+            <input type="checkbox" id="em-cb-dinner" onchange="toggleEditMealRow('dinner')" />
+            <span>🌙 เย็น</span>
+          </label>
+          <div id="em-grams-row-dinner" class="em-grams-inline" style="display:none">
+            <input id="em-g-dinner" type="number" class="field-input" min="0" style="width:90px"
+              oninput="updateEditCalc(getAllItems().find(i=>i.id===editingItemId)||{})" />
+            <span class="field-label" style="margin:0">กรัม/คน</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: calculated -->
+      <div class="modal-section">
+        <p class="modal-section-title">ค่าคำนวณ (มื้อที่เลือก)</p>
+        <div class="modal-row"><span class="modal-label">ฐาน (กก.)</span><span id="em-base" class="modal-value"></span></div>
+        <div class="modal-row"><span class="modal-label" id="em-rec-label">แนะนำสั่ง (+5%)</span><span id="em-rec" class="modal-value bold orange"></span></div>
+        <div class="modal-row"><span class="modal-label">ค่าใช้จ่าย (฿)</span><span id="em-cost" class="modal-value bold"></span></div>
+      </div>
+
+      <!-- Actions -->
+      <div class="modal-actions">
+        <button class="btn-cta" onclick="saveEdit()">บันทึก</button>
+        <button class="btn-danger" onclick="deleteFromModal()">ลบวัตถุดิบ</button>
+        <button class="btn-outline" onclick="closeEditModal()">ปิด</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/db/db-items.js"></script>
+  <script src="js/db/db-config.js"></script>
+  <script src="js/db/db-history.js"></script>
+  <script src="js/db-manager.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/dashboard.js"></script>
 </body>
