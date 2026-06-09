@@ -84,6 +84,15 @@ const SEED_ITEMS = [
   { id:'mb07', name:'ไก่ป๊อปคอร์น (Frozen)',category:'ลูกชิ้น/ไส้กรอก & ของทานเล่น', meals:_mkMeals(60,60,60),   pricePerKg:155 },
 ];
 
+/* ── DEFAULT seed items (small set, shown on first load & reset) ── */
+const SEED_DEFAULTS = [
+  { id:'def01', name:'สันคอหมู',  category:'ชิ้นส่วนหมู',  meals:_mkMeals(80,150,180), pricePerKg:195 },
+  { id:'def02', name:'เบคอน',     category:'หมูแปรรูป',     meals:_mkMeals(80,0,0),     pricePerKg:320 },
+  { id:'def03', name:'อกไก่',     category:'ไก่/แปรรูป',    meals:_mkMeals(80,150,160), pricePerKg:85  },
+  { id:'def04', name:'กุ้งแวนนาไม (ปอกเปลือก)', category:'กุ้ง', meals:_mkMeals(60,120,150), pricePerKg:280 },
+  { id:'def05', name:'ไข่ไก่',    category:'ลูกชิ้น/ไส้กรอก & ของทานเล่น', meals:_mkMeals(100,80,0), pricePerKg:65 },
+];
+
 /* ── Category → CSS badge class ── */
 const CAT_BADGE = {
   'ชิ้นส่วนหมู':                  'badge-pork',
@@ -124,9 +133,32 @@ function _saveAll(items) {
 }
 function saveAll(items) { _saveAll(items); }
 
+/* Check if item name already exists (case-insensitive, trimmed) */
+function itemExistsByName(name) {
+  const q = name.trim().toLowerCase();
+  return getAllItems().find(i => i.name.trim().toLowerCase() === q) || null;
+}
+
+/* Seed default items — only adds items whose names don't already exist */
+function seedDefaultItems() {
+  const added = [];
+  SEED_DEFAULTS.forEach(def => {
+    if (!itemExistsByName(def.name)) {
+      addItemToDB(Object.assign({}, def, { id: 'def_' + Date.now() + '_' + Math.random().toString(36).slice(2) }));
+      added.push(def.name);
+    }
+  });
+  return added.length;
+}
+
 function initDB() {
-  if (!localStorage.getItem(DB_ITEMS_KEY)) {
-    _saveAll(SEED_ITEMS);
+  const existing = getAllItems();
+  if (!existing || existing.length === 0) {
+    // First load: seed defaults only
+    const defaults = SEED_DEFAULTS.map((def, i) =>
+      Object.assign({}, def, { id: 'def_' + i })
+    );
+    _saveAll(defaults);
   }
 }
 

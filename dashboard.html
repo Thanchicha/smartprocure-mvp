@@ -101,7 +101,10 @@
     <div class="card no-pad">
       <div class="table-hd">
         <span class="card-title" style="margin:0">รายการวัตถุดิบ</span>
-        <button class="btn-cta" onclick="exportCSV()">↓ ส่งออก CSV</button>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+          <button class="btn-outline" style="border-color:var(--orange);color:var(--orange);font-size:0.8125rem;padding:0.4rem 0.875rem" onclick="handleResetSeed()">↺ รีเซ็ตข้อมูลตัวอย่าง</button>
+          <button class="btn-cta" onclick="exportCSV()">↓ ส่งออก CSV</button>
+        </div>
       </div>
 
       <!-- Desktop Table (≥1024px) -->
@@ -222,14 +225,16 @@
 
   <!-- ── Duplicate Modal ── -->
   <div id="dup-modal" class="modal-overlay hidden" onclick="closeDupModal(event)">
-    <div class="modal-card" style="max-width:400px">
+    <div class="modal-card" style="max-width:420px">
       <div style="text-align:center;margin-bottom:1rem">
-        <span style="font-size:2.5rem">⚠️</span>
+        <span style="font-size:2.75rem;line-height:1">⚠️</span>
         <h3 style="font-size:1.125rem;font-weight:700;color:var(--navy);margin-top:0.5rem">มีวัตถุดิบนี้อยู่แล้ว</h3>
+        <p style="font-size:0.8125rem;color:var(--muted);margin-top:0.25rem">ข้อมูลที่บันทึกไว้มีดังนี้</p>
       </div>
       <div id="dup-info" class="dup-info-box"></div>
-      <div style="text-align:center;margin-top:1.25rem">
-        <button class="btn-cta" onclick="closeDupModal()">ตกลง</button>
+      <div style="display:flex;flex-direction:column;gap:0.625rem;margin-top:1.25rem">
+        <button id="dup-edit-btn" class="btn-cta" style="width:100%">✎ แก้ไขรายการนี้</button>
+        <button class="btn-outline" style="width:100%" onclick="document.getElementById('dup-modal').classList.add('hidden')">ยกเลิก</button>
       </div>
     </div>
   </div>
@@ -252,7 +257,6 @@
       <!-- Section 2: meals checkboxes + grams -->
       <div class="modal-section">
         <p class="modal-section-title">มื้อที่ใช้ & กรัม/คน</p>
-
         <!-- Breakfast -->
         <div class="em-meal-row">
           <label class="meal-cb-label">

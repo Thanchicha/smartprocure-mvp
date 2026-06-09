@@ -1,6 +1,6 @@
 /**
  * dashboard.js — SmartProcure Core Engine v3
- * 4-Step calculation, meal-aware items, no i18n dependency
+ * 4-Step calculation, meal-aware items, duplicate modal, reset seed
  */
 
 /* ── Meal Meta ── */
@@ -23,16 +23,14 @@ function calcTotalGuests(totalRooms, occupancyRate, guestsPerRoom) {
   return Math.round(totalRooms * (occupancyRate / 100) * guestsPerRoom);
 }
 
-// Step 2
 function calcMealGuests(totalGuests, mealRate) {
   return Math.round(totalGuests * (mealRate / 100));
 }
 
-// Steps 3 & 4
 function calcRow(item, meal, mealGuests, bufferFactor, bufferRate) {
   const grams         = getGrams(item, meal);
-  const baseKg        = (grams * mealGuests * bufferFactor) / 1000;          // Step 3
-  const recommendedKg = baseKg * (1 + bufferRate / 100);                      // Step 4
+  const baseKg        = (grams * mealGuests * bufferFactor) / 1000;
+  const recommendedKg = baseKg * (1 + bufferRate / 100);
   const cost          = recommendedKg * item.pricePerKg;
   return { grams, baseKg, recommendedKg, cost };
 }
@@ -58,7 +56,6 @@ function recalculate() {
   const bufferFactor = ms.bufferFactor;
   const items        = getAllItems().filter(i => isMealActive(i, activeMeal));
 
-  // Summary note
   const noteEl = document.getElementById('hotel-summary');
   if (noteEl) noteEl.innerHTML =
     `ห้องทั้งหมด <strong>${totalRooms}</strong> ห้อง × อัตรา <strong>${occupancyRate}%</strong> × <strong>${guestsPerRoom}</strong> คน/ห้อง = <strong>${totalGuests}</strong> คน`;
@@ -242,7 +239,7 @@ function renderMealConfig() {
   const cfg = getConfig();
 
   container.innerHTML = MEAL_KEYS.map(meal => {
-    const ms  = cfg.mealSettings[meal];
+    const ms   = cfg.mealSettings[meal];
     const meta = MEAL_META[meal];
     return `<div class="meal-cfg-card">
       <div class="meal-cfg-header">
@@ -299,7 +296,6 @@ function renderDaily(totalRooms, occupancyRate, guestsPerRoom, bufferRate, cfg) 
     grandCost += cost;
   });
 
-  /* Daily cards */
   if (dailyEl) {
     dailyEl.innerHTML =
       Object.values(meals).map(m => `
@@ -315,7 +311,6 @@ function renderDaily(totalRooms, occupancyRate, guestsPerRoom, bufferRate, cfg) 
       </div>`;
   }
 
-  /* Bar chart */
   if (barEl) {
     const maxKg = Math.max(...Object.values(meals).map(m => m.kg), 0.01);
     barEl.innerHTML = Object.entries(meals).map(([, m]) => {
@@ -328,7 +323,6 @@ function renderDaily(totalRooms, occupancyRate, guestsPerRoom, bufferRate, cfg) 
     }).join('');
   }
 
-  /* Pie chart */
   const catMap = {};
   MEAL_KEYS.forEach(key => {
     const ms    = cfg.mealSettings[key];
@@ -412,7 +406,7 @@ function toggleNewGrams(meal) {
 }
 
 /* ─────────────────────────────────────────────
-   ADD ITEM
+   ADD ITEM (with duplicate check)
 ───────────────────────────────────────────── */
 function addItem() {
   const name  = document.getElementById('new-name')?.value.trim();
@@ -421,8 +415,8 @@ function addItem() {
 
   if (!name) { alert('กรุณากรอกชื่อวัตถุดิบ'); return; }
 
-  // Duplicate check
-  const existing = getAllItems().find(i => i.name.toLowerCase() === name.toLowerCase());
+  // Duplicate check — show modal instead of alert
+  const existing = itemExistsByName(name);
   if (existing) { showDupModal(existing); return; }
 
   // Build meals object from checkboxes
@@ -458,6 +452,39 @@ function deleteItem(id) {
 }
 
 /* ─────────────────────────────────────────────
+   RESET SEED
+───────────────────────────────────────────── */
+function handleResetSeed() {
+  if (!confirm('รีเซ็ตข้อมูลตัวอย่างหรือไม่?\nรายการที่มีชื่อซ้ำจะไม่ถูก overwrite')) return;
+  const added = seedDefaultItems();
+  recalculate();
+  showToast(added > 0 ? `เพิ่มข้อมูลตัวอย่าง ${added} รายการแล้ว` : 'ไม่มีรายการใหม่ (มีครบแล้ว)');
+}
+
+/* ─────────────────────────────────────────────
+   TOAST NOTIFICATION
+───────────────────────────────────────────── */
+function showToast(msg) {
+  let toast = document.getElementById('sp-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'sp-toast';
+    toast.style.cssText = `
+      position:fixed;bottom:1.5rem;right:1.5rem;z-index:1000;
+      background:var(--navy);color:#fff;font-family:var(--font);
+      font-size:0.875rem;padding:0.75rem 1.25rem;border-radius:0.625rem;
+      box-shadow:0 4px 20px rgba(0,0,0,0.2);
+      opacity:0;transition:opacity 0.25s;pointer-events:none;
+    `;
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 3000);
+}
+
+/* ─────────────────────────────────────────────
    MEAL TAB
 ───────────────────────────────────────────── */
 function selectMeal(meal) {
@@ -472,13 +499,36 @@ function selectMeal(meal) {
    DUPLICATE MODAL
 ───────────────────────────────────────────── */
 function showDupModal(item) {
+  // Build meal info rows
+  const mealRows = MEAL_KEYS
+    .filter(m => isMealActive(item, m))
+    .map(m => `<div class="dup-row">
+      <span class="dup-label">${MEAL_META[m].icon} ${MEAL_META[m].label}</span>
+      <span class="dup-val">${getGrams(item, m)} กรัม/คน</span>
+    </div>`).join('');
+
   const info = document.getElementById('dup-info');
   if (info) info.innerHTML = `
     <div class="dup-row"><span class="dup-label">ชื่อ</span><span class="dup-val bold">${esc(item.name)}</span></div>
     <div class="dup-row"><span class="dup-label">หมวดหมู่</span><span class="dup-val">${esc(item.category)}</span></div>
-    <div class="dup-row"><span class="dup-label">ราคา/กก.</span><span class="dup-val">${item.pricePerKg.toLocaleString()} ฿</span></div>`;
+    <div class="dup-row"><span class="dup-label">ราคา/กก.</span><span class="dup-val">${item.pricePerKg.toLocaleString()} ฿</span></div>
+    ${mealRows ? `<div style="margin-top:0.5rem;font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;padding:0.25rem 0">มื้อที่ใช้</div>${mealRows}` : ''}
+  `;
+
+  // Wire the edit button to open edit modal for this item
+  const editBtn = document.getElementById('dup-edit-btn');
+  if (editBtn) {
+    editBtn.onclick = () => openEditModalFromDuplicate(item.id);
+  }
+
   document.getElementById('dup-modal')?.classList.remove('hidden');
 }
+
+function openEditModalFromDuplicate(id) {
+  document.getElementById('dup-modal')?.classList.add('hidden');
+  openEditModal(id);
+}
+
 function closeDupModal(e) {
   if (e && e.target !== document.getElementById('dup-modal')) return;
   document.getElementById('dup-modal')?.classList.add('hidden');
@@ -496,7 +546,6 @@ function openEditModal(id) {
   setText('em-cat',   item.category);
   setText('em-price', item.pricePerKg.toLocaleString() + ' ฿/กก.');
 
-  // Populate checkboxes + grams
   MEAL_KEYS.forEach(meal => {
     const cb  = document.getElementById(`em-cb-${meal}`);
     const inp = document.getElementById(`em-g-${meal}`);
@@ -516,8 +565,7 @@ function toggleEditMealRow(meal) {
   const cb  = document.getElementById(`em-cb-${meal}`);
   const row = document.getElementById(`em-grams-row-${meal}`);
   if (row) row.style.display = cb?.checked ? 'flex' : 'none';
-  const id   = editingItemId;
-  const item = id ? getAllItems().find(i => i.id === id) : null;
+  const item = editingItemId ? getAllItems().find(i => i.id === editingItemId) : null;
   if (item) updateEditCalc(item);
 }
 
@@ -528,8 +576,8 @@ function updateEditCalc(item) {
   const tg  = calcTotalGuests(totalRooms, occupancyRate, guestsPerRoom);
   const mg  = calcMealGuests(tg, ms.mealRate);
 
-  const cb  = document.getElementById(`em-cb-${activeMeal}`);
-  const inp = document.getElementById(`em-g-${activeMeal}`);
+  const cb    = document.getElementById(`em-cb-${activeMeal}`);
+  const inp   = document.getElementById(`em-g-${activeMeal}`);
   const grams = cb?.checked ? (parseFloat(inp?.value) || 0) : 0;
 
   const baseKg        = (grams * mg * ms.bufferFactor) / 1000;
@@ -635,7 +683,6 @@ function initAutocomplete() {
           const priceInp = document.getElementById('new-price');
           if (catSel)   catSel.value   = item.category;
           if (priceInp) priceInp.value = item.pricePerKg;
-          // Pre-fill meal checkboxes from existing item
           MEAL_KEYS.forEach(meal => {
             const cb = document.getElementById(`new-cb-${meal}`);
             const gr = document.getElementById(`new-g-${meal}`);
