@@ -30,31 +30,56 @@
     </div>
 
     <!-- Hotel Config -->
-    <div class="card">
-      <p class="card-title">ข้อมูลโรงแรม</p>
-      <div class="input-grid">
-        <div class="field-group">
-          <label class="field-label">จำนวนห้องทั้งหมด</label>
-          <input id="total-rooms" type="number" class="field-input" value="80" min="1" oninput="recalculate()" />
-        </div>
-        <div class="field-group">
-          <label class="field-label">อัตราการเข้าพัก (%)</label>
-          <input id="occupancy-rate" type="number" class="field-input" value="75" min="0" max="100" oninput="recalculate()" />
-        </div>
-        <div class="field-group">
-          <label class="field-label">แขกต่อห้อง</label>
-          <input id="guests-per-room" type="number" class="field-input" value="1.8" min="1" step="0.1" oninput="recalculate()" />
-        </div>
-        <div class="field-group">
-          <label class="field-label">% เผื่อสูญเสีย (Trim/Waste)</label>
-          <input id="buffer-rate" type="number" class="field-input" value="5" min="0" max="50" oninput="recalculate()" />
-        </div>
-      </div>
-      <p class="summary-note">
-        <span id="hotel-summary"></span><br/>
-        <span id="meal-summary"></span>
-      </p>
+      <div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+    <p class="card-title" style="margin: 0;">ข้อมูลโรงแรมและการจัดการผู้เข้าพัก</p>
+    <div>
+      <label class="field-label" style="display: inline-block; margin-right: 0.5rem; margin-bottom: 0;">รูปแบบข้อมูลหน้างาน:</label>
+      <select id="calc-method-select" class="field-input" style="width: auto; padding: 0.25rem 2rem 0.25rem 0.75rem;" onchange="onMethodChange()">
+        <option value="method1">วิธีที่ 1: อิงจากอัตราห้องพักรวม</option>
+        <option value="method2">วิธีที่ 2: อิงจากห้องที่มีคนพักจริง</option>
+        <option value="method3">วิธีที่ 3: ระบุยอดรวมหัวแขกตรงๆ</option>
+      </select>
     </div>
+  </div>
+  
+  <div class="input-grid">
+    <div class="field-group" id="container-total-rooms">
+      <label class="field-label">จำนวนห้องทั้งหมด (ห้อง)</label>
+      <input id="total-rooms" type="number" class="field-input" value="80" min="1" oninput="recalculate()" />
+    </div>
+    
+    <div class="field-group" id="container-occupancy-rate">
+      <label class="field-label">อัตราการเข้าพัก (%)</label>
+      <input id="occupancy-rate" type="number" class="field-input" value="75" min="0" max="100" oninput="recalculate()" />
+    </div>
+    
+    <div class="field-group" id="container-occupied-rooms">
+      <label class="field-label">จำนวนห้องที่มีคนพัก (ห้อง)</label>
+      <input id="occupied-rooms" type="number" class="field-input" value="60" min="0" oninput="onOccupiedRoomsInput()" />
+    </div>
+    
+    <div class="field-group" id="container-guests-per-room">
+      <label class="field-label">แขกเฉลี่ยต่อห้อง (คน)</label>
+      <input id="guests-per-room" type="number" class="field-input" value="1.8" min="0.1" step="0.1" oninput="recalculate()" />
+    </div>
+    
+    <div class="field-group" id="container-exact-guests">
+      <label class="field-label" style="font-weight:600; color:var(--primary);">จำนวนแขกพักจริง (คน)</label>
+      <input id="exact-guests" type="number" class="field-input" value="108" min="0" oninput="recalculate()" style="font-weight:600;" />
+    </div>
+    
+    <div class="field-group" id="container-buffer-rate">
+      <label class="field-label" style="color:var(--orange); font-weight:600;">เผื่อสูญเสีย (Trim/Waste)</label>
+      <input id="buffer-rate" type="number" class="field-input" value="5" min="0" max="50" oninput="recalculate()" style="border-color:var(--orange);" />
+    </div>
+  </div>
+  
+  <p class="summary-note" style="margin-top: 1rem; line-height: 1.6;">
+    <span id="hotel-summary"></span><br/>
+    <span id="meal-summary"></span>
+  </p>
+</div>
 
     <!-- ── ตั้งค่ามื้ออาหาร ── -->
     <div class="card">
@@ -67,9 +92,9 @@
     <div class="card" style="padding:1rem 1.25rem;">
       <p class="card-title">เลือกมื้ออาหาร</p>
       <div class="tab-row" id="meal-tabs">
-        <button class="tab active" data-meal="breakfast" onclick="selectMeal('breakfast')">☀️ เช้า</button>
-        <button class="tab" data-meal="lunch" onclick="selectMeal('lunch')">🌤 กลางวัน</button>
-        <button class="tab" data-meal="dinner" onclick="selectMeal('dinner')">🌙 เย็น</button>
+        <button class="tab active" data-meal="breakfast" onclick="selectMeal('breakfast')">เช้า</button>
+        <button class="tab" data-meal="lunch" onclick="selectMeal('lunch')">กลางวัน</button>
+        <button class="tab" data-meal="dinner" onclick="selectMeal('dinner')">เย็น</button>
       </div>
     </div>
 
@@ -317,6 +342,11 @@
   <script src="js/db/db-history.js"></script>
   <script src="js/db-manager.js"></script>
   <script src="js/auth.js"></script>
-  <script src="js/dashboard.js"></script>
+
+  <script src="js/dashboard/state.js"></script>
+  <script src="js/dashboard/calculator.js"></script>
+  <script src="js/dashboard/ui-render.js"></script>
+  <script src="js/dashboard/main.js"></script>
+
 </body>
 </html>
