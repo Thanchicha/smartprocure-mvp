@@ -79,9 +79,11 @@ function recalculate() {
     else noteEl.innerHTML = `ผู้เข้าพักจริงสุทธิรวม ${totalGuests} คน`;
   }
   
+  const targetGuests = Math.round(totalGuests * (1 + (bufferRate / 100)));
   const mealNoteEl = document.getElementById('meal-summary');
-  if (mealNoteEl) mealNoteEl.innerHTML = `มื้อ${MEAL_META[activeMeal].label}: คิดเป็น ${ms.mealRate}% ของผู้เข้าพัก ≈ ${mealGuests} คนลงมารับประทาน · ตัวคูณสูตรอาหาร ${bufferFactor}×`;
-//   if (mealNoteEl) mealNoteEl.innerHTML = `มื้อ${MEAL_META[activeMeal].label}: คิดเป็น <strong>${ms.mealRate}%</strong> ของผู้เข้าพัก ≈ <strong>${mealGuests}</strong> คนลงมารับประทาน · ตัวคูณสูตรอาหาร <strong>${bufferFactor}×</strong>`;
+  if (mealNoteEl) {
+    mealNoteEl.innerHTML = `จำนวนแขกพักจริง ${totalGuests} คน × เผื่อสูญเสีย ${bufferRate}% = จำนวนแนะนำให้สั่งสำหรับ ${targetGuests} คน`;
+  }
 
   let baseTotal = 0, recTotal = 0, costTotal = 0;
   items.forEach(item => {
@@ -180,10 +182,9 @@ function exportCSV() {
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-// ผูกฟังก์ชันเริ่มทำงานเมื่อโหลดหน้าเว็บ
 document.addEventListener('DOMContentLoaded', () => {
   renderMealConfig();
-  onMethodChange(); // จะไปเรียก recalculate() อัตโนมัติ
+  onMethodChange();
   initAutocomplete();
   
   let resizeTimer;
