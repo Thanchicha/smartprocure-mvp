@@ -15,28 +15,69 @@ const DailyPlansPage = (() => {
         <div class="section-title">แผนรายวัน</div>
         <div class="section-sub">รายการแผนวัตถุดิบที่บันทึกไว้</div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-        <div class="search-wrap" style="max-width:320px;flex:none;position:relative">
-          <span class="search-icon" style="font-size:14px">&#128269;</span>
-          <input type="text" class="search-input" id="plan-search" placeholder="ค้นหาชื่อหรือวันที่" value="${searchQ}" style="padding-left:36px!important" />
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="search-wrap" style="max-width:280px;flex:none;position:relative">
+            <span class="search-icon" style="font-size:14px">&#128269;</span>
+            <input type="text" class="search-input" id="plan-search" placeholder="ค้นหาชื่อหรือวันที่" value="${searchQ}" style="padding-left:36px!important" />
+          </div>
+          <span style="font-size:13px;color:#64748B">${plans.length} รายการ</span>
         </div>
-        <span style="font-size:13px;color:#64748B">${plans.length} รายการ</span>
+        <button id="btn-add-plan" class="btn-primary" style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:16px">+</span> เพิ่มแผนรายวัน
+        </button>
       </div>
 
       ${!plans.length ? `
         <div class="empty-state">
           <div class="icon" style="font-size:40px;color:#CBD5E1">&#128197;</div>
           <h3>ยังไม่มีแผนรายวัน</h3>
-          <p>บันทึกแผนจากหน้า "คำนวณยอดสั่ง" ก่อน</p>
+          <p>กดปุ่มด้านบนเพื่อสร้างแผนแรก</p>
         </div>` : `
         <div id="plans-list">
           ${plans.map(plan=>renderPlanCard(plan)).join('')}
         </div>`}
+
+      <!-- Add Plan Modal -->
+      <div id="add-plan-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+        <div class="card" style="width:100%; max-width:320px; padding:24px; box-shadow:0 20px 40px rgba(0,0,0,0.2);">
+          <h3 style="margin-bottom:16px; font-size:18px; color:#1E3A5F;">เพิ่มแผนรายวันใหม่</h3>
+          <div class="form-group">
+            <label>เลือกวันที่</label>
+            <input type="date" id="new-plan-date" style="width:100%" value="${new Date().toISOString().slice(0,10)}" />
+          </div>
+          <div style="display:flex; gap:10px; margin-top:24px;">
+            <button class="btn-secondary" id="btn-cancel-add" style="flex:1">ยกเลิก</button>
+            <button class="btn-primary" id="btn-confirm-add" style="flex:1">เริ่มคำนวณ</button>
+          </div>
+        </div>
+      </div>
     `;
 
     document.getElementById('plan-search')?.addEventListener('input',e=>{
       searchQ = e.target.value;
       render(container);
+    });
+
+    const modal = document.getElementById('add-plan-modal');
+    document.getElementById('btn-add-plan')?.addEventListener('click', () => {
+      modal.style.display = 'flex';
+    });
+    document.getElementById('btn-cancel-add')?.addEventListener('click', () => {
+      modal.style.display = 'none';
+    });
+    document.getElementById('btn-confirm-add')?.addEventListener('click', () => {
+      const d = document.getElementById('new-plan-date').value || new Date().toISOString().slice(0,10);
+      modal.style.display = 'none';
+      CalculatorPage.loadPlan({
+        id: null, plan_date: d, days: 1,
+        meals: {
+          breakfast: { mealRate: 90, items: [] },
+          lunch:     { mealRate: 60, items: [] },
+          dinner:    { mealRate: 70, items: [] }
+        }
+      });
+      showPage('calculator');
     });
 
     container.querySelectorAll('.plan-toggle').forEach(btn=>{
@@ -52,6 +93,15 @@ const DailyPlansPage = (() => {
         DB.deletePlan(btn.dataset.id);
         UI.toast('ลบแผนเรียบร้อย');
         render(container);
+      });
+    });
+    container.querySelectorAll('.plan-edit').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const plan = DB.getPlan(btn.dataset.id);
+        if(!plan) return;
+        CalculatorPage.loadPlan(plan);
+        showPage('calculator');
+        UI.toast('โหลดแผนเพื่อแก้ไขแล้ว');
       });
     });
   }
@@ -105,6 +155,7 @@ const DailyPlansPage = (() => {
             <div style="text-align:right;display:none" class="sm-show">
               <div style="font-weight:700;color:#F97316">฿${UI.fmtMoney(total)}</div>
             </div>
+            <button class="btn-secondary sm plan-edit" data-id="${plan.id}" title="แก้ไข" style="font-size:13px;padding:6px 10px;border-color:#93C5FD;color:#1D4ED8">แก้ไข</button>
             <button class="btn-secondary sm plan-toggle" data-id="${plan.id}">${isOpen?'ซ่อน':'ดูรายละเอียด'}</button>
             <button class="btn-danger plan-delete" data-id="${plan.id}" title="ลบ" style="font-size:13px;padding:6px 10px">ลบ</button>
           </div>

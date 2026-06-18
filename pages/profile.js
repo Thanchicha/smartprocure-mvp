@@ -17,7 +17,7 @@ const ProfilePage = (() => {
         <div class="section-sub">ข้อมูลนี้จะถูกใช้ในทุกการคำนวณ — กรอกครั้งเดียว แก้ไขได้ตลอด</div>
       </div>
 
-      <div class="card" style="max-width:700px">
+      <div class="card">
         <div class="card-header"><h3>ข้อมูลกิจการ / โรงแรม</h3></div>
         <div class="card-body">
           <div class="grid-2" style="margin-bottom:16px">
@@ -118,6 +118,7 @@ const ProfilePage = (() => {
       msg.style.display = '';
       setTimeout(()=>msg.style.display='none', 2500);
       UI.toast('บันทึกโปรไฟล์เรียบร้อย');
+      showPage('daily-plans');
     });
   }
 

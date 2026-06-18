@@ -67,7 +67,7 @@ function initApp() {
     location.reload();
   });
 
-  showPage('calculator');
+  showPage('profile');
 }
 
 function initLogin() {

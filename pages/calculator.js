@@ -2,6 +2,8 @@
 
 const CalculatorPage = (() => {
   let state = {
+    id: null,
+    plan_date: new Date().toISOString().slice(0,10),
     days: 1,
     meals: {
       breakfast: { mealRate: 90, items: [] },
@@ -241,7 +243,7 @@ const CalculatorPage = (() => {
       return { x, y, bh };
     }
     const yTicks = [0, Math.round(maxKg*0.25), Math.round(maxKg*0.5), Math.round(maxKg*0.75), Math.round(maxKg)];
-    let barSvg = `<svg width="${svgW}" height="${BAR_H+60}" style="overflow:visible">`;
+    let barSvg = `<div style="overflow-x:auto; max-width:100%"><svg width="${svgW}" height="${BAR_H+60}" style="overflow:visible">`;
     yTicks.forEach(t => {
       const y = BAR_H - (t/maxKg)*BAR_H + 10;
       barSvg += `<line x1="${LEFT_PAD-8}" y1="${y}" x2="${svgW-10}" y2="${y}" stroke="#E2E8F0" stroke-width="1"/>
@@ -254,7 +256,7 @@ const CalculatorPage = (() => {
         <text x="${x+BAR_W/2}" y="${BAR_H+26}" font-size="12" fill="#475569" text-anchor="middle">${MEAL_LABELS_TH[mk]}</text>
         <text x="${x+BAR_W/2}" y="${y-4}" font-size="11" fill="${MEAL_COLORS[mk]}" text-anchor="middle" font-weight="700">${d.totalKg.toFixed(1)}</text>`;
     });
-    barSvg += `</svg>`;
+    barSvg += `</svg></div>`;
 
     // Donut chart (SVG)
     const summaryItems = computeSummary();
@@ -342,9 +344,15 @@ const CalculatorPage = (() => {
       <div class="card" style="margin-bottom:16px">
         <div class="card-header">
           <h3>สรุปแต่ละมื้อ (ต่อวัน)</h3>
-          <div style="display:flex;align-items:center;gap:8px">
-            <label style="font-size:12px;color:#64748B">จำนวนวัน:</label>
-            <input type="number" id="days-inp" min="1" value="${days}" style="width:60px" />
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;color:#64748B">บันทึกของวันที่:</label>
+              <input type="date" id="plan-date-inp" value="${state.plan_date}" style="width:130px; font-size:12px; padding:4px 8px" />
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;color:#64748B">จำนวนวัน:</label>
+              <input type="number" id="days-inp" min="1" value="${days}" style="width:60px" />
+            </div>
           </div>
         </div>
         <div class="card-body">
@@ -409,6 +417,9 @@ const CalculatorPage = (() => {
       state.days = Math.max(1, Number(e.target.value)||1);
       renderDashboard();
     });
+    document.getElementById('plan-date-inp')?.addEventListener('change', e => {
+      state.plan_date = e.target.value || new Date().toISOString().slice(0,10);
+    });
     document.getElementById('btn-save-plan')?.addEventListener('click', savePlan);
     document.getElementById('btn-print')?.addEventListener('click', () => window.print());
     document.getElementById('btn-quote')?.addEventListener('click', () => UI.toast('ฟีเจอร์ใบเสนอราคากำลังพัฒนา'));
@@ -420,7 +431,8 @@ const CalculatorPage = (() => {
     const items = computeSummary();
     const total = items.reduce((a,i)=>a+i.cost,0);
     const plan = {
-      plan_date: new Date().toISOString().slice(0,10),
+      id: state.id || undefined,
+      plan_date: state.plan_date,
       business_name: p.businessName, contact_name: p.contactName||'',
       contact_phone: p.contactPhone||'', delivery_address: p.deliveryAddress||'',
       customer_type: p.customerType||'โรงแรม',
@@ -432,6 +444,7 @@ const CalculatorPage = (() => {
     };
     DB.savePlan(plan);
     UI.toast('บันทึกแผนเรียบร้อย');
+    showPage('daily-plans');
   }
 
   function render(container){
@@ -453,7 +466,7 @@ const CalculatorPage = (() => {
               กำหนดจำนวนแขกเอง (ไม่คำนวณจากห้อง)
             </label>
           </div>
-          <div id="calc-room-fields" class="grid-4" style="${p.useManualGuests?'display:none':''}margin-bottom:16px">
+          <div id="calc-room-fields" class="grid-4" style="${p.useManualGuests?'display:none;':''}margin-bottom:16px">
             <div class="form-group">
               <label>จำนวนห้องทั้งหมด</label>
               <input type="number" id="calc-total-rooms" min="1" value="${p.totalRooms||80}" />
@@ -471,7 +484,7 @@ const CalculatorPage = (() => {
               <input type="number" id="calc-buf-rate" min="0" value="${p.bufferRate||5}" />
             </div>
           </div>
-          <div id="calc-manual-fields" style="${!p.useManualGuests?'display:none':''}margin-bottom:16px">
+          <div id="calc-manual-fields" style="${!p.useManualGuests?'display:none;':''}margin-bottom:16px">
             <div class="form-group" style="max-width:200px">
               <label>จำนวนแขก (คน)</label>
               <input type="number" id="calc-manual-guests" min="1" value="${p.manualGuests||100}" />
@@ -541,5 +554,13 @@ const CalculatorPage = (() => {
     renderDashboard();
   }
 
-  return { render };
+  function loadPlan(plan) {
+    state.id = plan.id;
+    state.plan_date = plan.plan_date;
+    state.days = plan.days;
+    state.meals = JSON.parse(JSON.stringify(plan.meals));
+    state.currentMeal = 'breakfast';
+  }
+
+  return { render, loadPlan };
 })();
