@@ -3,56 +3,94 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmartProcure — Login</title>
+  <title>SmartProcure — ปะการังซัพพลาย</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style-login.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="page-wrap">
 
+<!-- LOGIN PAGE -->
+<div id="page-login" class="page">
+  <div class="login-bg">
     <div class="login-card">
-      <!-- Brand -->
-      <div class="brand">
-        <div class="brand-logo">SP</div>
-        <h1 class="brand-name">SmartProcure</h1>
-        <p class="brand-sub" data-i18n="login.subtitle">Hotel Food Order Calculator</p>
-        <p class="brand-credit" data-i18n="login.credit">by ปะการัง Supply</p>
+      <div class="login-logo">
+        <div class="sp-icon">SP</div>
+        <h1>SmartProcure</h1>
+        <p>ระบบวางแผนจัดซื้อ ปะการังซัพพลาย</p>
       </div>
-
-      <!-- Form -->
-      <form id="login-form" onsubmit="handleLogin(event)">
-        <h2 class="form-heading" data-i18n="login.heading">เข้าสู่ระบบ</h2>
-        <p class="form-sub" data-i18n="login.subheading">กรอกข้อมูลบัญชีผู้ใช้ของคุณ</p>
-
-        <div class="field-group">
-          <label class="field-label" data-i18n="login.username">Username</label>
-          <input id="inp-user" type="text" class="field-input" placeholder="admin" required />
+      <form id="login-form">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="login-user" placeholder="กรอก username" autocomplete="username" />
         </div>
-
-        <div class="field-group">
-          <label class="field-label" data-i18n="login.password">Password</label>
+        <div class="form-group">
+          <label>Password</label>
           <div class="pw-wrap">
-            <input id="inp-pass" type="password" class="field-input" placeholder="••••••••" required />
-            <button type="button" class="pw-eye" onclick="togglePw()">👁</button>
+            <input type="password" id="login-pass" placeholder="กรอก password" autocomplete="current-password" />
+            <button type="button" id="toggle-pw" class="btn-icon">👁</button>
           </div>
         </div>
-
-        <div id="login-err" class="err-box hidden" data-i18n="login.error">Username หรือ Password ไม่ถูกต้อง</div>
-
-        <button type="submit" id="login-btn" class="btn-cta full" data-i18n="login.submit">เข้าสู่ระบบ</button>
+        <div id="login-error" class="error-msg" style="display:none"></div>
+        <button type="submit" class="btn-primary full" id="login-btn">เข้าสู่ระบบ</button>
       </form>
-
-      <div class="demo-hint">
-        Demo: <code>admin</code> / <code>password</code>
-      </div>
+      <p class="login-hint">admin / password &nbsp;|&nbsp; chef / chef1234</p>
     </div>
   </div>
+</div>
 
-  <script src="js/db/db-items.js"></script>
-  <script src="js/db/db-config.js"></script>
-  <script src="js/db/db-history.js"></script>
-  <script src="js/db-manager.js"></script>
-  <script src="js/auth.js"></script>
+<!-- MAIN APP -->
+<div id="page-app" class="page" style="display:none">
+
+  <!-- Navbar -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-inner">
+      <div class="nav-brand">
+        <div class="sp-icon sm">SP</div>
+        <div>
+          <span class="brand-name">SmartProcure</span>
+          <span class="brand-sub">ปะการังซัพพลาย</span>
+        </div>
+      </div>
+      <div class="nav-links" id="nav-links">
+        <a href="#" class="nav-link active" data-page="calculator">คำนวณยอดสั่ง</a>
+        <a href="#" class="nav-link" data-page="daily-plans">แผนรายวัน</a>
+        <a href="#" class="nav-link" data-page="batch-order">Batch Order</a>
+        <a href="#" class="nav-link" data-page="order-history">ประวัติสั่งซื้อ</a>
+        <a href="#" class="nav-link" data-page="profile">โปรไฟล์</a>
+      </div>
+      <div class="nav-right">
+        <span id="nav-username" class="nav-user"></span>
+        <button id="logout-btn" class="btn-logout">ออกจากระบบ</button>
+        <button id="mobile-menu-btn" class="btn-icon mobile-only" style="font-size:18px;line-height:1">&#9776;</button>
+      </div>
+    </div>
+    <div id="mobile-nav" class="mobile-nav" style="display:none"></div>
+  </nav>
+
+  <!-- Pages Container -->
+  <div id="content">
+    <div id="subpage-calculator" class="subpage"></div>
+    <div id="subpage-daily-plans" class="subpage" style="display:none"></div>
+    <div id="subpage-batch-order" class="subpage" style="display:none"></div>
+    <div id="subpage-order-history" class="subpage" style="display:none"></div>
+    <div id="subpage-profile" class="subpage" style="display:none"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+<script src="data/ingredients.js"></script>
+<script src="js/db.js"></script>
+<script src="js/calc.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/ui.js"></script>
+<script src="pages/calculator.js"></script>
+<script src="pages/daily-plans.js"></script>
+<script src="pages/batch-order.js"></script>
+<script src="pages/order-history.js"></script>
+<script src="pages/profile.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>

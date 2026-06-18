@@ -1,68 +1,30 @@
-/**
- * auth.js — SmartProcure Authentication
- * Mock login (admin / password). Redirects between index.html ↔ dashboard.html.
- */
+/* eslint-disable */
+// SmartProcure — Auth 
 
-const AUTH_KEY  = 'sp_auth_v2';
-const CREDS     = { username: 'admin', password: 'password' };
+const AUTH_KEY = 'sp_auth_v1';
+const CREDENTIALS = [
+  {username:'admin',password:'password',name:'Admin User'},
+  {username:'chef',password:'chef1234',name:'Chef'},
+  {username:'pakarang',password:'supply2024',name:'Pakarang Supply'},
+];
 
-/* ── Session helpers ── */
-function isLoggedIn() {
-  try { return JSON.parse(localStorage.getItem(AUTH_KEY))?.ok === true; }
-  catch { return false; }
-}
-function setSession()   { localStorage.setItem(AUTH_KEY, JSON.stringify({ ok: true })); }
-function clearSession() { localStorage.removeItem(AUTH_KEY); }
-
-/* ── Redirect guards ── */
-(function guard() {
-  const onDash  = location.pathname.includes('dashboard');
-  const onLogin = !onDash;
-
-  if (onDash && !isLoggedIn()) {
-    location.replace('index.html');
-  }
-  if (onLogin && isLoggedIn()) {
-    location.replace('dashboard.html');
-  }
-})();
-
-/* ── Login handler (called by index.html form) ── */
-function handleLogin(e) {
-  e.preventDefault();
-  const user = document.getElementById('inp-user')?.value.trim();
-  const pass = document.getElementById('inp-pass')?.value;
-  const btn  = document.getElementById('login-btn');
-  const err  = document.getElementById('login-err');
-
-  if (!btn || !err) return;
-
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>';
-  err.classList.add('hidden');
-
-  setTimeout(() => {
-    if (user === CREDS.username && pass === CREDS.password) {
-      setSession();
-      location.replace('dashboard.html');
-    } else {
-      err.classList.remove('hidden');
-      btn.disabled  = false;
-      btn.setAttribute('data-i18n', 'login.submit');
-      btn.textContent = typeof t === 'function' ? t('login.submit') : 'เข้าสู่ระบบ';
+const Auth = {
+  login(username, password){
+    const u = CREDENTIALS.find(c => c.username===username.trim() && c.password===password);
+    if(u){
+      const session = {username:u.username, name:u.name, loginAt:Date.now()};
+      localStorage.setItem(AUTH_KEY, JSON.stringify(session));
+      return {success:true, user:session};
     }
-  }, 550);
-}
-
-/* ── Logout handler (called by dashboard.html) ── */
-function handleLogout() {
-  clearSession();
-  location.replace('index.html');
-}
-
-/* ── Password toggle ── */
-function togglePw() {
-  const inp = document.getElementById('inp-pass');
-  if (!inp) return;
-  inp.type = inp.type === 'password' ? 'text' : 'password';
-}
+    return {success:false, error:'Username หรือ Password ไม่ถูกต้อง'};
+  },
+  logout(){
+    localStorage.removeItem(AUTH_KEY);
+  },
+  getSession(){
+    try{ return JSON.parse(localStorage.getItem(AUTH_KEY)||'null'); } catch{ return null; }
+  },
+  isAuthenticated(){
+    return !!this.getSession();
+  }
+};
