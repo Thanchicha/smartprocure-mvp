@@ -8,6 +8,9 @@ const BatchOrderPage = (() => {
   let orderName = '';
   let container = null;
 
+  const _c = { 'ชิ้นส่วนวัว':'#EF4444', 'วัว/แปรรูป':'#B91C1C', 'ชิ้นส่วนหมู':'#EC4899', 'หมูแปรรูป':'#BE185D', 'ไก่/แปรรูป':'#EAB308', 'ปลา':'#06B6D4', 'กุ้ง':'#DC2626', 'หมึก':'#8B5CF6', 'หอย':'#F97316', 'ปู':'#F43F5E' };
+  const catColor = c => _c[c] || '#94A3B8';
+
   function aggregate(){
     const map = {};
     selectedPlanIds.forEach(id=>{
@@ -33,10 +36,12 @@ const BatchOrderPage = (() => {
   function getNetItems(){
     return aggregated.map(item=>{
       const leftover = parseFloat(leftoverStocks[item.ingredientId]||0);
-      const netKg = Math.max(0, item.orderKg - leftover);
+      const rawNet = Math.max(0, item.orderKg - leftover);
+      const ord = Calc.orderQty(rawNet, item.unit, item.unitSize||1);
+      const netKg = ord.kg;
       const netCost = Math.round(netKg * item.pricePerKg);
       const moqSt = Calc.moqStatus(netKg, item.moq);
-      return {...item, leftover, netKg, netCost, moqStatus:moqSt};
+      return {...item, leftover, rawNet, netKg, netCost, moqStatus:moqSt, ordDisplay: ord.display};
     });
   }
 
@@ -96,6 +101,45 @@ const BatchOrderPage = (() => {
         <td class="r" style="font-weight:700;color:#F97316">฿${UI.fmtMoney(item.cost)}</td>
       </tr>`).join('');
 
+    // Donut chart (SVG)
+    const catMap = {};
+    aggregated.forEach(item => { catMap[item.category] = (catMap[item.category]||0) + item.orderKg; });
+    const catEntries = Object.entries(catMap).filter(([,v])=>v>0);
+    const totalCatKg = catEntries.reduce((a,[,v])=>a+v,0);
+    let donutSvg = `<svg width="180" height="180" viewBox="0 0 180 180">`;
+    if(catEntries.length > 0){
+      let angle = -90;
+      catEntries.forEach(([cat, kg]) => {
+        const pct = kg / totalCatKg;
+        const deg = pct * 360;
+        const r = 70, cx = 90, cy = 90, ri = 42;
+        const toRad = d => d * Math.PI / 180;
+        const x1 = cx + r * Math.cos(toRad(angle));
+        const y1 = cy + r * Math.sin(toRad(angle));
+        const x2 = cx + r * Math.cos(toRad(angle + deg));
+        const y2 = cy + r * Math.sin(toRad(angle + deg));
+        const xi1 = cx + ri * Math.cos(toRad(angle));
+        const yi1 = cy + ri * Math.sin(toRad(angle));
+        const xi2 = cx + ri * Math.cos(toRad(angle + deg));
+        const yi2 = cy + ri * Math.sin(toRad(angle + deg));
+        const large = deg > 180 ? 1 : 0;
+        donutSvg += `<path d="M${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} L${xi2.toFixed(2)},${yi2.toFixed(2)} A${ri},${ri} 0 ${large},0 ${xi1.toFixed(2)},${yi1.toFixed(2)} Z" fill="${catColor(cat)}" opacity="0.85"/>`;
+        angle += deg;
+      });
+      donutSvg += `<circle cx="90" cy="90" r="38" fill="white"/>
+        <text x="90" y="86" text-anchor="middle" font-size="13" font-weight="700" fill="#1E293B">${totalCatKg.toFixed(1)}</text>
+        <text x="90" y="102" text-anchor="middle" font-size="10" fill="#64748B">กก. รวม</text>`;
+    } else {
+      donutSvg += `<circle cx="90" cy="90" r="70" fill="#F1F5F9"/><circle cx="90" cy="90" r="42" fill="white"/>
+        <text x="90" y="94" text-anchor="middle" font-size="11" fill="#94A3B8">ไม่มีข้อมูล</text>`;
+    }
+    donutSvg += `</svg>`;
+    const legend = catEntries.map(([cat, kg]) =>
+      `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#475569;white-space:nowrap">
+        <span style="width:10px;height:10px;border-radius:50%;background:${catColor(cat)};flex-shrink:0"></span>${cat}: ${kg.toFixed(2)} กก.
+      </span>`
+    ).join('');
+
     container.innerHTML = `
       <div class="page-header">
         <div class="section-title">Batch Order</div>
@@ -105,8 +149,24 @@ const BatchOrderPage = (() => {
         <div class="step active">2. รวมรายการ</div>
         <div class="step">3. ยืนยันสั่งซื้อ</div>
       </div>
+
+      <div class="grid-2" style="margin-bottom:16px; align-items: stretch">
+        <div class="card" style="display:flex; flex-direction:column; justify-content:center; align-items:center; padding: 24px">
+          <div style="font-size:14px; font-weight:600; color:#64748B; margin-bottom:8px">รวม ${selectedPlanIds.size} วัน</div>
+          <div style="font-size:36px; font-weight:800; color:#1E293B; margin-bottom:12px">${totalCatKg.toFixed(1)} กก.</div>
+          <div style="font-size:24px; font-weight:700; color:#F97316">฿${UI.fmtMoney(total)}</div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>สัดส่วนหมวดวัตถุดิบ (ดิบ)</h3></div>
+          <div class="card-body" style="display:flex;flex-direction:column;align-items:center;gap:10px">
+            ${donutSvg}
+            <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">${legend||'<span style="font-size:12px;color:#94A3B8">ไม่มีข้อมูล</span>'}</div>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
-        <div class="card-header"><h3>รายการวัตถุดิบรวม (${aggregated.length} รายการ)</h3></div>
+        <div class="card-header"><h3>รายการวัตถุดิบรวมทั้งหมด (${aggregated.length} รายการ)</h3></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>วัตถุดิบ</th><th class="c">หมวด</th><th class="r">สั่ง(กก.)</th><th class="r">ราคา/กก.</th><th class="r">รวม(฿)</th></tr></thead>

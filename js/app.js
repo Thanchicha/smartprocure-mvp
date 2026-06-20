@@ -51,7 +51,7 @@ function initApp() {
   const mobNav = document.getElementById('mobile-nav');
   if(mobBtn && mobNav) {
     // build mobile nav
-    mobNav.innerHTML = Object.entries({calculator:'คำนวณยอดสั่ง','daily-plans':'แผนรายวัน','batch-order':'Batch Order','order-history':'ประวัติสั่งซื้อ',profile:'โปรไฟล์'})
+    mobNav.innerHTML = Object.entries({'daily-plans':'แผนรายวัน','batch-order':'Batch Order','order-history':'ประวัติสั่งซื้อ',profile:'โปรไฟล์'})
       .map(([k,v])=>`<a href="#" class="nav-link" data-page="${k}">${v}</a>`).join('');
     mobNav.querySelectorAll('.nav-link').forEach(a => {
       a.addEventListener('click', e => { e.preventDefault(); showPage(a.dataset.page); });

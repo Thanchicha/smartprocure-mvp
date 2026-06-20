@@ -29,10 +29,15 @@ const Calc = {
     if(unit==='pack') return orderResult.qty * (pricePerKg * unitSize);
     return orderResult.kg * pricePerKg;
   },
-  itemRow({gramsPerPerson, mealGuests, bufferRate, pricePerKg, unit='kg', unitSize=1}){
+  itemRow({gramsPerPerson, mealGuests, bufferRate, pricePerKg, unit='kg', unitSize=1}, round=false){
     const base = this.baseKg(gramsPerPerson, mealGuests);
     const rec = this.recommendedKg(base, bufferRate);
-    const ord = this.orderQty(rec, unit, unitSize);
+    let ord;
+    if(round) {
+      ord = this.orderQty(rec, unit, unitSize);
+    } else {
+      ord = { qty: rec, kg: rec, display: `${rec.toFixed(2)} กก.` };
+    }
     const cost = this.cost(ord, pricePerKg, unit, unitSize);
     return {
       baseKg: parseFloat(base.toFixed(3)),
