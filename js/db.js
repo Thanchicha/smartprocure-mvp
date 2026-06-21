@@ -1,7 +1,7 @@
 /* eslint-disable */
 // SmartProcure — DB (localStorage)
 
-const DB_KEYS = { dailyPlans:'sp_daily_plans', batchOrders:'sp_batch_orders' };
+const DB_KEYS = { dailyPlans:'sp_daily_plans', batchOrders:'sp_batch_orders', menus:'sp_menus' };
 
 const DB = {
   _get(key){ try{ return JSON.parse(localStorage.getItem(key)||'[]'); }catch{ return []; } },
@@ -51,5 +51,27 @@ const DB = {
   deleteOrder(id){
     const orders = this.getOrders().filter(o=>o.id!==id);
     this._set(DB_KEYS.batchOrders, orders);
+  },
+
+  // Menus
+  getMenus(){ return this._get(DB_KEYS.menus); },
+  saveMenu(menu){
+    const menus = this.getMenus();
+    if(menu.id){
+      const idx = menus.findIndex(m=>m.id===menu.id);
+      if(idx>-1) menus[idx]={...menus[idx],...menu,updated_date:Date.now()};
+      else menus.unshift({...menu,updated_date:Date.now()});
+    } else {
+      menu.id = this._id();
+      menu.created_date = Date.now();
+      menu.updated_date = Date.now();
+      menus.unshift(menu);
+    }
+    this._set(DB_KEYS.menus, menus);
+    return menu;
+  },
+  deleteMenu(id){
+    const menus = this.getMenus().filter(m=>m.id!==id);
+    this._set(DB_KEYS.menus, menus);
   },
 };

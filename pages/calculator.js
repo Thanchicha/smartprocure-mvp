@@ -158,7 +158,12 @@ const CalculatorPage = (() => {
       </div>
       <div style="display:flex;align-items:center;gap:12px" id="search-row">
         <div id="meal-search-wrap" style="flex:1"></div>
+        <button id="btn-import-menu" class="btn-secondary" style="height:42px">นำเข้าจากเมนู</button>
       </div>`;
+
+    document.getElementById('btn-import-menu')?.addEventListener('click', () => {
+      openMenuImportModal(mk);
+    });
 
     document.getElementById('meal-rate-inp').addEventListener('change', e => {
       state.meals[mk].mealRate = Number(e.target.value) || 0;
@@ -206,6 +211,95 @@ const CalculatorPage = (() => {
         bufferRate: item.bufferRate,
       });
       renderMealTab(); renderDashboard();
+    });
+  }
+
+  function openMenuImportModal(mk) {
+    const menus = DB.getMenus();
+    const rows = menus.length ? menus.map(m => `
+      <div class="card" style="margin-bottom:10px; cursor:pointer" data-id="${m.id}">
+        <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:700;color:#1E293B">${m.name}</div>
+            <div style="font-size:12px;color:#64748B">${m.items.length} วัตถุดิบ</div>
+          </div>
+          <div style="display:flex; gap:8px">
+            <button class="btn-primary btn-sm btn-select-menu" data-id="${m.id}">นำเข้า</button>
+            <button class="btn-secondary btn-sm btn-del-menu-modal" data-id="${m.id}" style="color:#EF4444; border-color:#FECACA">ลบ</button>
+          </div>
+        </div>
+      </div>
+    `).join('') : `<div style="text-align:center;padding:20px;color:#64748B">ยังไม่มีเมนูอาหาร</div>`;
+
+    const modalHtml = `
+      <div id="menu-import-modal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:999">
+        <div class="card" style="width:100%;max-width:400px;background:#fff;border-radius:12px;overflow:hidden">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <h3 style="margin:0">นำเข้าจากเมนู</h3>
+            <button id="btn-close-menu-modal" style="background:none;border:none;font-size:24px;cursor:pointer;color:#94A3B8">&times;</button>
+          </div>
+          <div class="card-body" style="max-height:400px;overflow-y:auto">
+            ${rows}
+          </div>
+          <div style="padding:16px;border-top:1px solid #E2E8F0;text-align:center">
+            <button id="btn-create-menu-modal" class="btn-secondary" style="width:100%">+ สร้างเมนูใหม่</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const div = document.createElement('div');
+    div.innerHTML = modalHtml;
+    document.body.appendChild(div);
+
+    const closeModal = () => div.remove();
+
+    div.querySelector('#btn-close-menu-modal').addEventListener('click', closeModal);
+    div.querySelector('#menu-import-modal').addEventListener('click', e => {
+      if(e.target.id === 'menu-import-modal') closeModal();
+    });
+
+    div.querySelector('#btn-create-menu-modal').addEventListener('click', () => {
+      closeModal();
+      window.returnToAfterMenu = 'calculator';
+      MenusPage.showNewForm();
+      showPage('menus');
+    });
+
+    div.querySelectorAll('.btn-del-menu-modal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if(confirm('ต้องการลบเมนูนี้ใช่หรือไม่?')) {
+          DB.deleteMenu(btn.dataset.id);
+          closeModal();
+          openMenuImportModal(mk);
+        }
+      });
+    });
+
+    div.querySelectorAll('.btn-select-menu').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const menu = menus.find(m => m.id === btn.dataset.id);
+        if(menu) {
+          menu.items.forEach(mi => {
+            const existing = state.meals[mk].items.find(i => i.ingredientId === mi.ingredientId);
+            if(existing) {
+              existing.gramsPerPerson += mi.gramsPerPerson;
+            } else {
+              const ing = getIngredientById(mi.ingredientId);
+              if(ing) {
+                state.meals[mk].items.push({
+                  ingredientId: mi.ingredientId,
+                  gramsPerPerson: mi.gramsPerPerson,
+                  pricePerKg: ing.pricePerKg,
+                  bufferRate: ing.bufferRate,
+                });
+              }
+            }
+          });
+          UI.toast(`นำเข้าเมนู "${menu.name}" เรียบร้อย`);
+          renderMealTab(); renderDashboard();
+          closeModal();
+        }
+      });
     });
   }
 
