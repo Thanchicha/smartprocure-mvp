@@ -1,15 +1,8 @@
 // SmartProcure — Profile Page
 
 const ProfilePage = (() => {
-  const PROFILE_KEY = 'sp_profile';
-
-  function loadProfile(){
-    try { return JSON.parse(localStorage.getItem(PROFILE_KEY)||'{}'); } catch{ return {}; }
-  }
-  function saveProfile(p){ localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); }
-
   function render(container){
-    const p = loadProfile();
+    const p = DB.getProfile();
 
     container.innerHTML = `
       <div class="page-header">
@@ -113,7 +106,7 @@ const ProfilePage = (() => {
     document.getElementById('p-save-btn').addEventListener('click', () => {
       const data = collectForm();
       if(!data.businessName){ UI.toast('กรุณากรอกชื่อกิจการ','error'); return; }
-      saveProfile(data);
+      DB.saveProfile(data);
       const msg = document.getElementById('p-saved-msg');
       msg.style.display = '';
       setTimeout(()=>msg.style.display='none', 2500);

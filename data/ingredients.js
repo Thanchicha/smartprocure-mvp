@@ -1,21 +1,19 @@
 // SmartProcure — Ingredient Data
 
-const CATEGORIES = ['ชิ้นส่วนหมู','หมูแปรรูป','หมูกระทะ/ชาบู','ไก่/แปรรูป','ชิ้นส่วนวัว','วัว/แปรรูป','เป็ด/แปรรูป','กุ้ง','หมึก','ปู','ลูกชิ้น/ไส้กรอก & ของทานเล่น','ปลา','ผัก/ผลไม้','ไข่/นม/เนย','แป้ง/ข้าว/เส้น','เครื่องปรุง'];
+const CATEGORIES = ['ชิ้นส่วนหมู','หมูแปรรูป','หมูกระทะ/ชาบู','ไก่/แปรรูป','ชิ้นส่วนวัว','วัว/แปรรูป','เป็ด/แปรรูป','กุ้ง','หมึก','ปู','ลูกชิ้น/ไส้กรอก & ของทานเล่น'];
 
 const CAT_BADGE = {
   'ชิ้นส่วนหมู':'badge-pink','หมูแปรรูป':'badge-fuchsia','หมูกระทะ/ชาบู':'badge-orange',
   'ไก่/แปรรูป':'badge-yellow','ชิ้นส่วนวัว':'badge-red','วัว/แปรรูป':'badge-amber',
   'เป็ด/แปรรูป':'badge-green','กุ้ง':'badge-rose','หมึก':'badge-blue','ปู':'badge-teal',
-  'ลูกชิ้น/ไส้กรอก & ของทานเล่น':'badge-purple','ปลา':'badge-cyan',
-  'ผัก/ผลไม้':'badge-lime','ไข่/นม/เนย':'badge-sky','แป้ง/ข้าว/เส้น':'badge-stone','เครื่องปรุง':'badge-indigo'
+  'ลูกชิ้น/ไส้กรอก & ของทานเล่น':'badge-purple'
 };
 
 const CAT_COLOR = {
   'ชิ้นส่วนหมู':'#EC4899','หมูแปรรูป':'#F472B6','หมูกระทะ/ชาบู':'#FB923C',
   'ไก่/แปรรูป':'#EAB308','ชิ้นส่วนวัว':'#EF4444','วัว/แปรรูป':'#F97316',
   'เป็ด/แปรรูป':'#22C55E','กุ้ง':'#E11D48','หมึก':'#3B82F6','ปู':'#14B8A6',
-  'ลูกชิ้น/ไส้กรอก & ของทานเล่น':'#8B5CF6','ปลา':'#06B6D4','ผัก/ผลไม้':'#84CC16',
-  'ไข่/นม/เนย':'#0EA5E9','แป้ง/ข้าว/เส้น':'#78716C','เครื่องปรุง':'#6366F1'
+  'ลูกชิ้น/ไส้กรอก & ของทานเล่น':'#8B5CF6'
 };
 
 const INGREDIENTS = [
@@ -82,15 +80,6 @@ const INGREDIENTS = [
   {id:'mb05',code:'PKR-1005',name:'MIX เกาหลี (JKB-350)',category:'ลูกชิ้น/ไส้กรอก & ของทานเล่น',pricePerKg:125,moq:1,bufferRate:20,unit:'pack',unitSize:3,defaultGrams:{breakfast:50,lunch:60,dinner:60}},
   {id:'mb06',code:'PKR-1006',name:'ทอดมันปลา',category:'ลูกชิ้น/ไส้กรอก & ของทานเล่น',pricePerKg:175,moq:2,bufferRate:5,unit:'kg',defaultGrams:{breakfast:0,lunch:70,dinner:70}},
   {id:'mb07',code:'PKR-1007',name:'ชีสโตะ ชีสดิป (JKB-4111)',category:'ลูกชิ้น/ไส้กรอก & ของทานเล่น',pricePerKg:56,moq:1,bufferRate:65,unit:'pack',unitSize:0.4,defaultGrams:{breakfast:30,lunch:25,dinner:25}},
-  // ปลา
-  {id:'f01',code:'PKR-1101',name:'ปลาซาบะนอร์เวย์ (JKB-232)',category:'ปลา',pricePerKg:175,moq:1,bufferRate:0,unit:'pack',unitSize:1,defaultGrams:{breakfast:0,lunch:100,dinner:130}},
-  {id:'f02',code:'PKR-1102',name:'ปลาแซลมอนสไลด์',category:'ปลา',pricePerKg:680,moq:1,bufferRate:5,unit:'kg',defaultGrams:{breakfast:50,lunch:80,dinner:100}},
-  {id:'f03',code:'PKR-1103',name:'ปลาดอรี่ (Fillet)',category:'ปลา',pricePerKg:120,moq:3,bufferRate:5,unit:'kg',defaultGrams:{breakfast:0,lunch:120,dinner:150}},
-  {id:'f04',code:'PKR-1104',name:'เล้งหมู (JKB-4030)',category:'ปลา',pricePerKg:70,moq:3,bufferRate:20,unit:'kg',defaultGrams:{breakfast:0,lunch:100,dinner:120}},
-  // ไข่/นม/เนย
-  {id:'e01',code:'PKR-1201',name:'ไข่ไก่ (แผง 30 ฟอง)',category:'ไข่/นม/เนย',pricePerKg:65,moq:1,bufferRate:5,unit:'kg',defaultGrams:{breakfast:100,lunch:80,dinner:0}},
-  {id:'e02',code:'PKR-1202',name:'เนยสด (Unsalted)',category:'ไข่/นม/เนย',pricePerKg:280,moq:1,bufferRate:5,unit:'kg',defaultGrams:{breakfast:20,lunch:15,dinner:15}},
-  {id:'e03',code:'PKR-1203',name:'นมสด UHT',category:'ไข่/นม/เนย',pricePerKg:45,moq:2,bufferRate:5,unit:'kg',defaultGrams:{breakfast:200,lunch:0,dinner:0}},
 ];
 
 function getIngredientById(id){ return INGREDIENTS.find(i=>i.id===id); }

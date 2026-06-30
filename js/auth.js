@@ -3,16 +3,17 @@
 
 const AUTH_KEY = 'sp_auth_v1';
 const CREDENTIALS = [
-  {username:'admin',password:'password',name:'Admin User'},
-  {username:'chef',password:'chef1234',name:'Chef'},
-  {username:'pakarang',password:'supply2024',name:'Pakarang Supply'},
+  {username:'hotela',password:'password',name:'Hotel A',role:'customer'},
+  {username:'hotelb',password:'password',name:'Hotel B',role:'customer'},
+  {username:'hotelc',password:'password',name:'Hotel C',role:'customer'},
+  {username:'pakarang',password:'password',name:'Pakarang Supply',role:'admin'},
 ];
 
 const Auth = {
   login(username, password){
     const u = CREDENTIALS.find(c => c.username===username.trim() && c.password===password);
     if(u){
-      const session = {username:u.username, name:u.name, loginAt:Date.now()};
+      const session = {username:u.username, name:u.name, role:u.role, loginAt:Date.now()};
       localStorage.setItem(AUTH_KEY, JSON.stringify(session));
       return {success:true, user:session};
     }

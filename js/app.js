@@ -6,8 +6,11 @@ const PAGES = {
   'daily-plans': DailyPlansPage,
   'batch-order': BatchOrderPage,
   'menus': MenusPage,
+  'menu-select': MenuSelectPage,
   'order-history': OrderHistoryPage,
   'profile': ProfilePage,
+  'admin-orders': AdminOrdersPage,
+  'admin-dashboard': AdminDashboardPage,
 };
 
 let currentPage = 'calculator';
@@ -42,6 +45,10 @@ function initApp() {
   const session = Auth.getSession();
   document.getElementById('nav-username').textContent = session?.name || '';
 
+  const isAdmin = session?.role === 'admin';
+  document.querySelectorAll('.cust-link').forEach(el => el.style.display = isAdmin ? 'none' : '');
+  document.querySelectorAll('.admin-link').forEach(el => el.style.display = isAdmin ? '' : 'none');
+
   // nav links
   document.querySelectorAll('.nav-link[data-page]').forEach(a => {
     a.addEventListener('click', e => { e.preventDefault(); showPage(a.dataset.page); });
@@ -52,8 +59,10 @@ function initApp() {
   const mobNav = document.getElementById('mobile-nav');
   if(mobBtn && mobNav) {
     // build mobile nav
-    mobNav.innerHTML = Object.entries({'daily-plans':'แผนรายวัน','batch-order':'Batch Order',menus:'เมนูอาหาร','order-history':'ประวัติสั่งซื้อ',profile:'โปรไฟล์'})
-      .map(([k,v])=>`<a href="#" class="nav-link" data-page="${k}">${v}</a>`).join('');
+    const custNav = {'daily-plans':'แผนรายวัน','batch-order':'Batch Order',menus:'เมนูอาหาร','order-history':'ประวัติสั่งซื้อ',profile:'โปรไฟล์'};
+    const adminNav = {'admin-orders':'ออเดอร์ทั้งหมด','admin-dashboard':'สรุปวัตถุดิบ'};
+    const navItems = isAdmin ? adminNav : custNav;
+    mobNav.innerHTML = Object.entries(navItems).map(([k,v])=>`<a href="#" class="nav-link" data-page="${k}">${v}</a>`).join('');
     mobNav.querySelectorAll('.nav-link').forEach(a => {
       a.addEventListener('click', e => { e.preventDefault(); showPage(a.dataset.page); });
     });
@@ -68,7 +77,7 @@ function initApp() {
     location.reload();
   });
 
-  showPage('profile');
+  showPage(isAdmin ? 'admin-dashboard' : 'profile');
 }
 
 function initLogin() {

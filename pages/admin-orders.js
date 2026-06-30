@@ -1,19 +1,18 @@
-// SmartProcure — Order History Page
+// SmartProcure — Admin Orders Page
 
-const OrderHistoryPage = (() => {
+const AdminOrdersPage = (() => {
   let expandedId = null;
 
   function render(container){
-    const orders = DB.getOrders();
+    const orders = DB.getAllAdminOrders();
     container.innerHTML = `
       <div class="page-header">
-        <div class="section-title">ประวัติคำสั่งซื้อ</div>
-        <div class="section-sub">รายการ Batch Order ที่ยืนยันแล้ว</div>
+        <div class="section-title">ออเดอร์ทั้งหมด (แอดมิน)</div>
+        <div class="section-sub">รายการ Batch Order จากลูกค้าทุกโรงแรม</div>
       </div>
       ${!orders.length ? `
         <div class="empty-state">
-          <h3>ยังไม่มีประวัติสั่งซื้อ</h3>
-          <p>ยืนยัน Batch Order ในหน้า "Batch Order" เพื่อบันทึกประวัติ</p>
+          <h3>ยังไม่มีคำสั่งซื้อจากลูกค้า</h3>
         </div>` : `
         <div>
           ${orders.map(order=>renderOrderCard(order)).join('')}
@@ -26,17 +25,16 @@ const OrderHistoryPage = (() => {
         render(container);
       });
     });
-    container.querySelectorAll('.order-delete').forEach(btn=>{
-      btn.addEventListener('click',()=>{
-        if(!UI.confirm('ยืนยันการลบคำสั่งซื้อนี้?')) return;
-        DB.deleteOrder(btn.dataset.id);
-        UI.toast('ลบเรียบร้อย');
-        render(container);
-      });
-    });
     container.querySelectorAll('.order-print').forEach(btn=>{
       btn.addEventListener('click',()=>window.print());
     });
+  }
+
+  function getHotelName(tenant) {
+    try {
+      const p = JSON.parse(localStorage.getItem(`sp_profile_${tenant}`)||'{}');
+      return p.businessName || tenant;
+    } catch(e) { return tenant; }
   }
 
   function renderOrderCard(order){
@@ -45,6 +43,7 @@ const OrderHistoryPage = (() => {
     const total = order.total_net_cost||0;
     const STATUS = {draft:{label:'ร่าง',cls:'badge-stone'},confirmed:{label:'ยืนยันแล้ว',cls:'badge-moq-green'},submitted:{label:'ส่งแล้ว',cls:'badge-blue'}};
     const st = STATUS[order.status]||STATUS.confirmed;
+    const hotelName = getHotelName(order._tenant);
 
     let detail = '';
     if(isOpen){
@@ -129,14 +128,14 @@ const OrderHistoryPage = (() => {
       <div class="card" style="margin-bottom:12px;overflow:hidden">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;flex-wrap:wrap;gap:10px">
           <div style="display:flex;align-items:center;gap:12px">
-            <div style="width:40px;height:40px;border-radius:10px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#3B82F6">Order</div>
+            <div style="width:40px;height:40px;border-radius:10px;background:#F0FDF4;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#16A34A">Cust</div>
             <div>
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="font-weight:700;color:#1E293B">${order.order_name||'(ไม่มีชื่อ)'}</span>
+                <span style="font-weight:700;color:#1E293B">${hotelName}</span>
                 <span class="badge ${st.cls}">${st.label}</span>
               </div>
               <div style="font-size:12px;color:#64748B;margin-top:2px">
-                ${order.confirmed_at?new Date(order.confirmed_at).toLocaleDateString('th-TH'):''} &nbsp;·&nbsp; ${net.length} รายการ
+                ออเดอร์: ${order.order_name||'(ไม่มีชื่อ)'} &nbsp;·&nbsp; ${order.confirmed_at?new Date(order.confirmed_at).toLocaleDateString('th-TH'):''}
               </div>
             </div>
           </div>
@@ -146,7 +145,6 @@ const OrderHistoryPage = (() => {
             </div>
             <button class="btn-secondary sm order-toggle" data-id="${order.id}">${isOpen?'ซ่อน':'ดู'}</button>
             <button class="btn-secondary sm order-print" data-id="${order.id}" title="พิมพ์">พิมพ์</button>
-            <button class="btn-danger order-delete" data-id="${order.id}" title="ลบ" style="font-size:13px;padding:6px 10px">ลบ</button>
           </div>
         </div>
         ${detail}

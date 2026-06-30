@@ -14,7 +14,7 @@ const CalculatorPage = (() => {
   };
 
   function getProfile(){
-    try { return JSON.parse(localStorage.getItem('sp_profile')||'{}'); } catch{ return {}; }
+    return DB.getProfile();
   }
 
   function getTotalGuests(){
@@ -162,7 +162,8 @@ const CalculatorPage = (() => {
       </div>`;
 
     document.getElementById('btn-import-menu')?.addEventListener('click', () => {
-      openMenuImportModal(mk);
+      window.menuSelectTargetMeal = mk;
+      showPage('menu-select');
     });
 
     document.getElementById('meal-rate-inp').addEventListener('change', e => {
@@ -214,93 +215,29 @@ const CalculatorPage = (() => {
     });
   }
 
-  function openMenuImportModal(mk) {
+  function importMenuData(menuId, mk) {
     const menus = DB.getMenus();
-    const rows = menus.length ? menus.map(m => `
-      <div class="card" style="margin-bottom:10px; cursor:pointer" data-id="${m.id}">
-        <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div style="font-weight:700;color:#1E293B">${m.name}</div>
-            <div style="font-size:12px;color:#64748B">${m.items.length} วัตถุดิบ</div>
-          </div>
-          <div style="display:flex; gap:8px">
-            <button class="btn-primary btn-sm btn-select-menu" data-id="${m.id}">นำเข้า</button>
-            <button class="btn-secondary btn-sm btn-del-menu-modal" data-id="${m.id}" style="color:#EF4444; border-color:#FECACA">ลบ</button>
-          </div>
-        </div>
-      </div>
-    `).join('') : `<div style="text-align:center;padding:20px;color:#64748B">ยังไม่มีเมนูอาหาร</div>`;
-
-    const modalHtml = `
-      <div id="menu-import-modal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:999">
-        <div class="card" style="width:100%;max-width:400px;background:#fff;border-radius:12px;overflow:hidden">
-          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-            <h3 style="margin:0">นำเข้าจากเมนู</h3>
-            <button id="btn-close-menu-modal" style="background:none;border:none;font-size:24px;cursor:pointer;color:#94A3B8">&times;</button>
-          </div>
-          <div class="card-body" style="max-height:400px;overflow-y:auto">
-            ${rows}
-          </div>
-          <div style="padding:16px;border-top:1px solid #E2E8F0;text-align:center">
-            <button id="btn-create-menu-modal" class="btn-secondary" style="width:100%">+ สร้างเมนูใหม่</button>
-          </div>
-        </div>
-      </div>
-    `;
-    const div = document.createElement('div');
-    div.innerHTML = modalHtml;
-    document.body.appendChild(div);
-
-    const closeModal = () => div.remove();
-
-    div.querySelector('#btn-close-menu-modal').addEventListener('click', closeModal);
-    div.querySelector('#menu-import-modal').addEventListener('click', e => {
-      if(e.target.id === 'menu-import-modal') closeModal();
-    });
-
-    div.querySelector('#btn-create-menu-modal').addEventListener('click', () => {
-      closeModal();
-      window.returnToAfterMenu = 'calculator';
-      MenusPage.showNewForm();
-      showPage('menus');
-    });
-
-    div.querySelectorAll('.btn-del-menu-modal').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if(confirm('ต้องการลบเมนูนี้ใช่หรือไม่?')) {
-          DB.deleteMenu(btn.dataset.id);
-          closeModal();
-          openMenuImportModal(mk);
+    const menu = menus.find(m => m.id === menuId);
+    if(menu) {
+      menu.items.forEach(mi => {
+        const existing = state.meals[mk].items.find(i => i.ingredientId === mi.ingredientId);
+        if(existing) {
+          existing.gramsPerPerson += mi.gramsPerPerson || 0;
+        } else {
+          const ing = getIngredientById(mi.ingredientId);
+          if(ing) {
+            state.meals[mk].items.push({
+              ingredientId: mi.ingredientId,
+              gramsPerPerson: mi.gramsPerPerson || 0,
+              pricePerKg: ing.pricePerKg,
+              bufferRate: ing.bufferRate,
+            });
+          }
         }
       });
-    });
-
-    div.querySelectorAll('.btn-select-menu').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const menu = menus.find(m => m.id === btn.dataset.id);
-        if(menu) {
-          menu.items.forEach(mi => {
-            const existing = state.meals[mk].items.find(i => i.ingredientId === mi.ingredientId);
-            if(existing) {
-              existing.gramsPerPerson += mi.gramsPerPerson;
-            } else {
-              const ing = getIngredientById(mi.ingredientId);
-              if(ing) {
-                state.meals[mk].items.push({
-                  ingredientId: mi.ingredientId,
-                  gramsPerPerson: mi.gramsPerPerson,
-                  pricePerKg: ing.pricePerKg,
-                  bufferRate: ing.bufferRate,
-                });
-              }
-            }
-          });
-          UI.toast(`นำเข้าเมนู "${menu.name}" เรียบร้อย`);
-          renderMealTab(); renderDashboard();
-          closeModal();
-        }
-      });
-    });
+      UI.toast(`นำเข้าเมนู "${menu.name}" เรียบร้อย`);
+      renderMealTab(); renderDashboard();
+    }
   }
 
   // ========== DASHBOARD ==========
@@ -550,6 +487,19 @@ const CalculatorPage = (() => {
         <div class="section-sub">เพิ่มวัตถุดิบแต่ละมื้อ ระบบจะคำนวณและสรุปยอดด้านล่างอัตโนมัติ</div>
       </div>
 
+      <!-- File Upload / Dropzone -->
+      <div class="card" style="margin-bottom:20px; background:#F8FAFC; border:2px dashed #CBD5E1; text-align:center; transition:all 0.2s" id="pms-dropzone">
+        <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
+        <div class="card-body" style="padding:40px 20px">
+          <div style="font-size:32px; margin-bottom:12px">📄</div>
+          <h3 style="color:#1E293B; margin-bottom:8px">ลากไฟล์รายงานยอดเข้าพัก (PMS PDF/Excel) มาวางที่นี่</h3>
+          <p style="color:#64748B; font-size:13px; margin-bottom:16px">ระบบจะดึงตัวเลขแขกมาตั้งค่าให้อัตโนมัติ (Sanitized Data 100%)</p>
+          <input type="file" id="pms-file-input" style="display:none" accept=".pdf,.xls,.xlsx,.csv" />
+          <button class="btn-primary" onclick="document.getElementById('pms-file-input').click()">หรือคลิกเพื่อเลือกไฟล์</button>
+        </div>
+      </div>
+      <div id="pms-result-container" style="display:none; margin-bottom:20px"></div>
+
       <!-- Guest Configuration -->
       <div class="card" style="margin-bottom:20px">
         <div class="card-header"><h3>ข้อมูลผู้เข้าพักและการเผื่อขาด</h3></div>
@@ -610,6 +560,209 @@ const CalculatorPage = (() => {
       <div id="dashboard-section"></div>
     `;
 
+    // File upload logic
+    const dropzone = document.getElementById('pms-dropzone');
+    const fileInput = document.getElementById('pms-file-input');
+    const resultContainer = document.getElementById('pms-result-container');
+
+    function handleFile(file) {
+      if(!file) return;
+
+      const resetHTML = `
+        <div class="card-body" style="padding:40px 20px">
+          <div style="font-size:32px; margin-bottom:12px">📄</div>
+          <h3 style="color:#1E293B; margin-bottom:8px">ลากไฟล์รายงานยอดเข้าพัก (PMS PDF/Excel) มาวางที่นี่</h3>
+          <p style="color:#64748B; font-size:13px; margin-bottom:16px">ระบบจะดึงตัวเลขแขกมาตั้งค่าให้อัตโนมัติ (Sanitized Data 100%)</p>
+          <input type="file" id="pms-file-input" style="display:none" accept=".pdf,.xls,.xlsx,.csv" />
+          <button class="btn-primary" onclick="document.getElementById('pms-file-input').click()">หรือคลิกเพื่อเลือกไฟล์</button>
+        </div>
+      `;
+
+      dropzone.innerHTML = `<div class="card-body" style="padding:40px 20px"><div style="margin:0 auto 16px;width:30px;height:30px;border:3px solid #E2E8F0;border-top-color:#F97316;border-radius:50%;animation:spin 1s linear infinite"></div><h3 style="color:#1E293B">กำลังสกัดข้อมูล...</h3><p style="color:#64748B; font-size:13px">ฟอกข้อมูลส่วนบุคคลและดึงสถิติจาก ${file.name}</p></div>`;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, {type: 'array'});
+          
+          let targetSheetName = null;
+          // Look for matching date in sheets
+          workbook.SheetNames.forEach(sheetName => {
+            if (sheetName === state.plan_date) {
+              targetSheetName = sheetName;
+            } else {
+              const ws = workbook.Sheets[sheetName];
+              for (const key in ws) {
+                if (key[0] === '!') continue;
+                if (ws[key].v && String(ws[key].v).includes(state.plan_date)) {
+                  targetSheetName = sheetName;
+                  break;
+                }
+              }
+            }
+          });
+
+          if (!targetSheetName) {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+            overlay.innerHTML = `
+              <div style="background:#fff;padding:24px;border-radius:12px;width:100%;max-width:400px;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.1);">
+                <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+                <h3 style="margin-bottom:12px;color:#1E293B">ไม่มีข้อมูล</h3>
+                <p style="color:#64748B;margin-bottom:20px;line-height:1.5">ไม่พบข้อมูลของวันที่ <strong>${state.plan_date}</strong> ในไฟล์นี้<br>โปรดตรวจสอบอีกครั้ง</p>
+                <button class="btn-primary full">ตกลง</button>
+              </div>
+            `;
+            overlay.querySelector('button').addEventListener('click', () => overlay.remove());
+            document.body.appendChild(overlay);
+            dropzone.innerHTML = resetHTML;
+            return;
+          }
+
+          const ws = workbook.Sheets[targetSheetName];
+          const json = XLSX.utils.sheet_to_json(ws, {header: 1});
+          
+          let ext = {
+            totalRooms: 0, roomsOccupied: 0, occRate: 0,
+            totalGuests: 0, adults: 0, children: 0,
+            nat_india: 0, nat_europe: 0, nat_china: 0, nat_domestic: 0
+          };
+
+          json.forEach(row => {
+            if(!row || !row[0] || !row[1]) return;
+            const label = String(row[0]).toLowerCase();
+            const val = parseFloat(String(row[1]).replace(/[^0-9.]/g, '')) || 0;
+            
+            if(label.includes('total available rooms')) ext.totalRooms = val;
+            if(label.includes('rooms occupied')) ext.roomsOccupied = val;
+            if(label.includes('occupancy rate')) {
+              ext.occRate = val <= 1 && val > 0 ? val * 100 : val;
+            }
+            if(label.includes('total guests in house') || label.includes('total guests')) ext.totalGuests = val;
+            if(label.includes('adults')) ext.adults = val;
+            if(label.includes('children')) ext.children = val;
+            if(label.includes('india')) ext.nat_india = val;
+            if(label.includes('europe') || label.includes('western')) ext.nat_europe = val;
+            if(label.includes('china')) ext.nat_china = val;
+            if(label.includes('domestic') || label.includes('thai')) ext.nat_domestic = val;
+          });
+          
+          dropzone.style.display = 'none';
+
+          document.getElementById('calc-use-manual').checked = false;
+          document.getElementById('calc-room-fields').style.display = '';
+          document.getElementById('calc-manual-fields').style.display = 'none';
+          document.getElementById('calc-total-rooms').value = ext.totalRooms;
+          document.getElementById('calc-occ-rate').value = ext.occRate;
+          document.getElementById('calc-guests-room').value = ext.roomsOccupied ? (ext.totalGuests / ext.roomsOccupied).toFixed(1) : 1;
+          saveAndRefresh();
+
+          const dateStr = new Date(state.plan_date).toLocaleDateString('th-TH');
+          resultContainer.style.display = '';
+          resultContainer.innerHTML = `
+            <div class="card" style="border-left:4px solid #10B981">
+              <div class="card-header" style="display:flex; justify-content:space-between; align-items:center">
+                <h3 style="color:#16A34A; display:flex; align-items:center; gap:8px">
+                  ✅ <span>ดึงข้อมูลสำเร็จจากไฟล์ <strong>${file.name}</strong> <br><small style="color:#64748B; font-weight:400; font-size:12px">(สกัดข้อมูลจาก Sheet วันที่: ${dateStr})</small></span>
+                </h3>
+                <button class="btn-secondary sm" id="btn-reset-dropzone">อัปโหลดใหม่</button>
+              </div>
+              <div class="card-body grid-3" style="gap:20px; align-items:start">
+                <div>
+                  <div style="font-weight:700; color:#475569; margin-bottom:12px; font-size:12px; letter-spacing:0.5px">OVERALL OCCUPANCY</div>
+                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Total Available Rooms</span><strong>${ext.totalRooms}</strong></div>
+                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Rooms Occupied</span><strong>${ext.roomsOccupied}</strong></div>
+                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Occupancy Rate</span><strong style="color:#10B981">${ext.occRate}%</strong></div>
+                </div>
+                <div>
+                  <div style="font-weight:700; color:#475569; margin-bottom:12px; font-size:12px; letter-spacing:0.5px">GUEST DEMOGRAPHICS</div>
+                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Total Guests In House</span><strong style="color:#F97316">${ext.totalGuests}</strong></div>
+                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Adults</span><strong>${ext.adults}</strong></div>
+                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Children</span><strong>${ext.children}</strong></div>
+                </div>
+                <div>
+                  <div style="font-weight:700; color:#475569; margin-bottom:12px; font-size:12px; letter-spacing:0.5px">SUMMARY NATIONALITY</div>
+                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>India</span><strong>${ext.nat_india}</strong></div>
+                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Europe/Western</span><strong>${ext.nat_europe}</strong></div>
+                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>China</span><strong>${ext.nat_china}</strong></div>
+                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Domestic/Thai</span><strong>${ext.nat_domestic}</strong></div>
+                </div>
+              </div>
+              </div>
+              <style>@keyframes aiPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }</style>
+              <div style="background:#F0FDF4; padding:16px 20px; font-size:14px; color:#166534; display:flex; align-items:flex-start; gap:12px; border-top:1px solid #DCFCE7; border-radius:0 0 8px 8px">
+                <div style="font-size:20px; animation: aiPulse 2s infinite">✨</div>
+                <div>
+                  <strong style="color:#15803D; margin-bottom:4px; display:block">Gemini AI Analysis</strong>
+                  <div id="ai-insight-text" style="line-height:1.5; color:#14532D">กำลังประมวลผล...</div>
+                </div>
+              </div>
+            </div>
+          `;
+          document.getElementById('btn-reset-dropzone').addEventListener('click', () => {
+            document.getElementById('pms-dropzone').style.display='';
+            document.getElementById('pms-dropzone').innerHTML = resetHTML;
+            document.getElementById('pms-result-container').style.display='none';
+          });
+          UI.toast('อัปเดตตัวเลขเข้าฟอร์มเรียบร้อยแล้ว');
+
+          // Simulate Gemini Analysis Typewriter Effect
+          const aiTextContainer = document.getElementById('ai-insight-text');
+          const msgs = [];
+          if(ext.occRate > 80) msgs.push("อัตราการเข้าพักสูงมาก แนะนำสต็อกวัตถุดิบเผื่อ Buffer เพิ่ม 5-10%");
+          if(ext.children / (ext.totalGuests||1) > 0.15) msgs.push("สัดส่วนเด็กเยอะ แนะนำเพิ่มเมนูเด็ก (ของทอด, ไส้กรอก)");
+          if(ext.nat_india / (ext.totalGuests||1) > 0.25) msgs.push("สัดส่วนแขกชาวอินเดียสูง แนะนำพิจารณาเพิ่มวัตถุดิบไก่/มังสวิรัติ หรือลดสัดส่วนเนื้อวัว/หมู");
+          if(ext.nat_china / (ext.totalGuests||1) > 0.25) msgs.push("แขกชาวจีนเยอะ แนะนำให้เตรียมเพิ่มเมนูข้าวต้ม หรือปาท่องโก๋");
+          if(ext.nat_europe / (ext.totalGuests||1) > 0.35) msgs.push("สัดส่วนแขกยุโรป/ตะวันตกสูง ควรเน้นการเตรียมเมนูอาหารเช้าแบบ American/Continental Breakfast");
+          
+          const fullText = msgs.length ? msgs.join(" และ ") : "ข้อมูลยอดเข้าพักอยู่ในระดับปกติ สามารถใช้แผนการสั่งซื้อมาตรฐานได้ครับ";
+          
+          aiTextContainer.textContent = '';
+          let typeIdx = 0;
+          const typeInterval = setInterval(() => {
+            if(typeIdx < fullText.length) {
+              aiTextContainer.textContent += fullText.charAt(typeIdx);
+              typeIdx++;
+            } else {
+              clearInterval(typeInterval);
+            }
+          }, 30);
+
+        } catch(err) {
+          console.error(err);
+          UI.toast('รูปแบบไฟล์ไม่ถูกต้อง หรือไม่สามารถอ่านไฟล์ได้', 'error');
+          dropzone.innerHTML = resetHTML;
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    dropzone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropzone.style.background = '#F1F5F9';
+      dropzone.style.borderColor = '#94A3B8';
+    });
+    dropzone.addEventListener('dragleave', e => {
+      e.preventDefault();
+      dropzone.style.background = '#F8FAFC';
+      dropzone.style.borderColor = '#CBD5E1';
+    });
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.style.background = '#F8FAFC';
+      dropzone.style.borderColor = '#CBD5E1';
+      if(e.dataTransfer.files && e.dataTransfer.files.length) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+    // delegation for the dynamic input
+    dropzone.addEventListener('change', e => {
+      if(e.target && e.target.id === 'pms-file-input' && e.target.files.length) {
+        handleFile(e.target.files[0]);
+      }
+    });
+
     // Guest config logic
     function saveAndRefresh() {
       const p = getProfile();
@@ -620,7 +773,7 @@ const CalculatorPage = (() => {
       p.manualGuests = Number(document.getElementById('calc-manual-guests').value) || 0;
       p.bufferRate = p.useManualGuests ? (Number(document.getElementById('calc-manual-buf').value) || 0) : (Number(document.getElementById('calc-buf-rate').value) || 0);
       
-      localStorage.setItem('sp_profile', JSON.stringify(p));
+      DB.saveProfile(p);
       document.getElementById('calc-guests-disp').textContent = getTotalGuests();
       renderMealTab();
       renderDashboard();
@@ -656,5 +809,5 @@ const CalculatorPage = (() => {
     state.currentMeal = 'breakfast';
   }
 
-  return { render, loadPlan };
+  return { render, loadPlan, importMenuData };
 })();

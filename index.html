@@ -34,7 +34,7 @@
         <div id="login-error" class="error-msg" style="display:none"></div>
         <button type="submit" class="btn-primary full" id="login-btn">เข้าสู่ระบบ</button>
       </form>
-      <p class="login-hint">admin / password &nbsp;|&nbsp; chef / chef1234</p>
+      <p class="login-hint">ลูกค้า: hotela / password &nbsp;|&nbsp; แอดมิน: pakarang / password</p>
     </div>
   </div>
 </div>
@@ -53,11 +53,15 @@
         </div>
       </div>
       <div class="nav-links" id="nav-links">
-        <a href="#" class="nav-link" data-page="daily-plans">แผนรายวัน</a>
-        <a href="#" class="nav-link" data-page="batch-order">Batch Order</a>
-        <a href="#" class="nav-link" data-page="menus">เมนูอาหาร</a>
-        <a href="#" class="nav-link" data-page="order-history">ประวัติสั่งซื้อ</a>
-        <a href="#" class="nav-link" data-page="profile">โปรไฟล์</a>
+        <!-- Customer Links -->
+        <a href="#" class="nav-link cust-link" data-page="daily-plans">แผนรายวัน</a>
+        <a href="#" class="nav-link cust-link" data-page="batch-order">Batch Order</a>
+        <a href="#" class="nav-link cust-link" data-page="menus">เมนูอาหาร</a>
+        <a href="#" class="nav-link cust-link" data-page="order-history">ประวัติสั่งซื้อ</a>
+        <a href="#" class="nav-link cust-link" data-page="profile">โปรไฟล์</a>
+        <!-- Admin Links -->
+        <a href="#" class="nav-link admin-link" data-page="admin-orders" style="display:none">ออเดอร์ทั้งหมด</a>
+        <a href="#" class="nav-link admin-link" data-page="admin-dashboard" style="display:none">สรุปวัตถุดิบ</a>
       </div>
       <div class="nav-right">
         <span id="nav-username" class="nav-user"></span>
@@ -76,13 +80,18 @@
     <div id="subpage-menus" class="subpage" style="display:none"></div>
     <div id="subpage-order-history" class="subpage" style="display:none"></div>
     <div id="subpage-profile" class="subpage" style="display:none"></div>
+    <div id="subpage-admin-orders" class="subpage" style="display:none"></div>
+    <div id="subpage-admin-dashboard" class="subpage" style="display:none"></div>
+    <div id="subpage-menu-select" class="subpage" style="display:none"></div>
   </div>
 </div>
 
 <!-- TOAST -->
 <div id="toast-container"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="data/ingredients.js"></script>
+<script src="data/default-menus.js"></script>
 <script src="js/db.js"></script>
 <script src="js/calc.js"></script>
 <script src="js/auth.js"></script>
@@ -91,8 +100,11 @@
 <script src="pages/daily-plans.js"></script>
 <script src="pages/batch-order.js"></script>
 <script src="pages/menus.js"></script>
+<script src="pages/menu-select.js"></script>
 <script src="pages/order-history.js"></script>
 <script src="pages/profile.js"></script>
+<script src="pages/admin-orders.js"></script>
+<script src="pages/admin-dashboard.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

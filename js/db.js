@@ -1,12 +1,29 @@
 /* eslint-disable */
 // SmartProcure — DB (localStorage)
 
-const DB_KEYS = { dailyPlans:'sp_daily_plans', batchOrders:'sp_batch_orders', menus:'sp_menus' };
+const DB_KEYS = { dailyPlans:'sp_daily_plans', batchOrders:'sp_batch_orders', menus:'sp_menus', profile:'sp_profile' };
 
 const DB = {
-  _get(key){ try{ return JSON.parse(localStorage.getItem(key)||'[]'); }catch{ return []; } },
-  _set(key,val){ localStorage.setItem(key,JSON.stringify(val)); },
+  _get(key){
+    const u = Auth.getSession()?.username || 'default';
+    const actualKey = `${key}_${u}`;
+    try{ return JSON.parse(localStorage.getItem(actualKey)||'[]'); }catch{ return []; }
+  },
+  _getObj(key){
+    const u = Auth.getSession()?.username || 'default';
+    const actualKey = `${key}_${u}`;
+    try{ return JSON.parse(localStorage.getItem(actualKey)||'{}'); }catch{ return {}; }
+  },
+  _set(key,val){
+    const u = Auth.getSession()?.username || 'default';
+    const actualKey = `${key}_${u}`;
+    localStorage.setItem(actualKey,JSON.stringify(val));
+  },
   _id(){ return 'id_'+Date.now()+'_'+Math.random().toString(36).slice(2,7); },
+
+  // Profile
+  getProfile(){ return this._getObj(DB_KEYS.profile); },
+  saveProfile(p){ this._set(DB_KEYS.profile, p); },
 
   // DailyPlans
   getPlans(){ return this._get(DB_KEYS.dailyPlans); },
@@ -52,9 +69,32 @@ const DB = {
     const orders = this.getOrders().filter(o=>o.id!==id);
     this._set(DB_KEYS.batchOrders, orders);
   },
+  getAllAdminOrders(){
+    const prefix = DB_KEYS.batchOrders + '_';
+    let all = [];
+    for(let i=0; i<localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k.startsWith(prefix)){
+        const tenant = k.substring(prefix.length);
+        try {
+          const tenantOrders = JSON.parse(localStorage.getItem(k)||'[]');
+          tenantOrders.forEach(o => o._tenant = tenant);
+          all = all.concat(tenantOrders);
+        } catch(e){}
+      }
+    }
+    return all.sort((a,b) => b.created_date - a.created_date);
+  },
 
-  // Menus
-  getMenus(){ return this._get(DB_KEYS.menus); },
+  getMenus(){
+    const u = Auth.getSession()?.username || 'default';
+    const initKey = `sp_menus_initialized_${u}`;
+    if(!localStorage.getItem(initKey)) {
+      this._set(DB_KEYS.menus, DEFAULT_MENUS);
+      localStorage.setItem(initKey, 'true');
+    }
+    return this._get(DB_KEYS.menus);
+  },
   saveMenu(menu){
     const menus = this.getMenus();
     if(menu.id){
