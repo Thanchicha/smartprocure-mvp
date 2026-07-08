@@ -3,7 +3,7 @@
 const AI = (() => {
   async function recommendMenus(plan, targetMeal, availableMenus, onComplete) {
     const p = DB.getProfile();
-    const apiKey = p.geminiApiKey || 'AQ.Ab8RN6JCkvZ3Y5K6lssRMn-pcmYLvVF0BV3g7Yawk1rvZYa83Q';
+    const apiKey = p.geminiApiKey || (typeof process !== 'undefined' && process.env.YOUR_API_KEY) || '';
     if (!apiKey) {
       UI.toast('กรุณาตั้งค่า Gemini API Key ในหน้าโปรไฟล์', 'error');
       onComplete(null);
