@@ -184,6 +184,11 @@ const MenusPage = (() => {
     `;
 
     document.getElementById('btn-back-list')?.addEventListener('click', () => {
+      if (currentMenu.name && currentMenu.name.trim() !== '' && currentMenu.items.length > 0) {
+        DB.saveMenu(currentMenu);
+        UI.toast('บันทึกเมนูอัตโนมัติเรียบร้อย');
+      }
+
       if (window.returnToAfterMenu) {
         const ret = window.returnToAfterMenu;
         window.returnToAfterMenu = null;

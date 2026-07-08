@@ -16,6 +16,15 @@ const PAGES = {
 let currentPage = 'calculator';
 
 function showPage(name) {
+  if (PAGES['calculator'].hasUnsavedChanges && PAGES['calculator'].hasUnsavedChanges()) {
+    if (name !== 'calculator' && name !== 'menu-select' && name !== 'menus') {
+      const wantToSave = confirm('คุณมีแผนสั่งซื้อที่กำลังทำค้างไว้ ต้องการบันทึกเป็นแบบร่าง (Draft) หรือไม่?');
+      if (wantToSave) {
+        PAGES['calculator'].saveDraft();
+      }
+    }
+  }
+
   currentPage = name;
   // hide all subpages
   Object.keys(PAGES).forEach(k => {
@@ -67,9 +76,20 @@ function initApp() {
       a.addEventListener('click', e => { e.preventDefault(); showPage(a.dataset.page); });
     });
     mobBtn.addEventListener('click', () => {
-      mobNav.style.display = mobNav.style.display === 'none' ? '' : 'none';
+      mobNav.style.display = mobNav.style.display === 'none' ? 'flex' : 'none';
     });
   }
+
+  window.addEventListener('beforeunload', (e) => {
+    if (PAGES['calculator'].hasUnsavedChanges && PAGES['calculator'].hasUnsavedChanges()) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  // initial check url hash
+  let p = location.hash.replace('#', '') || 'calculator';
+  if(!PAGES[p]) p = 'calculator';
 
   // logout
   document.getElementById('logout-btn')?.addEventListener('click', () => {

@@ -2,37 +2,43 @@
 
 const CalculatorPage = (() => {
   let state = {
-    id: null,
-    plan_date: new Date().toISOString().slice(0,10),
-    days: 1,
-    meals: {
-      breakfast: { mealRate: 90, items: [] },
-      lunch:     { mealRate: 60, items: [] },
-      dinner:    { mealRate: 70, items: [] },
-    },
-    currentMeal: 'breakfast',
+    planGroupId: null,
+    plans: [{
+      id: null, plan_date: new Date().toISOString().slice(0,10), days: 1,
+      meals: { breakfast: { mealRate: 90, items: [] }, lunch: { mealRate: 60, items: [] }, dinner: { mealRate: 70, items: [] } },
+      ext: null, fileName: null, guestConfig: null
+    }],
+    currentDateIdx: 0,
+    currentMeal: 'breakfast'
   };
+
+  function getCurrentPlan() {
+    return state.plans[state.currentDateIdx];
+  }
+  let isDirty = false;
 
   function getProfile(){
     return DB.getProfile();
   }
 
   function getTotalGuests(){
-    const p = getProfile();
+    const p = getCurrentPlan()?.guestConfig || getProfile();
     if(p.useManualGuests) return Number(p.manualGuests)||0;
     return Calc.totalGuests(Number(p.totalRooms)||0, Number(p.occupancyRate)||0, Number(p.guestsPerRoom)||1);
   }
 
   function getMealGuests(mealKey){
-    return Calc.mealGuests(getTotalGuests(), state.meals[mealKey].mealRate);
+    return Calc.mealGuests(getTotalGuests(), getCurrentPlan().meals[mealKey].mealRate);
   }
+
+
 
   function computeSummary(){
     const map = {};
     const MEAL_KEYS = ['breakfast','lunch','dinner'];
     MEAL_KEYS.forEach(mk => {
       const mg = getMealGuests(mk);
-      state.meals[mk].items.forEach(item => {
+      getCurrentPlan().meals[mk].items.forEach(item => {
         const ing = getIngredientById(item.ingredientId);
         if(!ing) return;
         const bufRate = (item.bufferRate !== undefined) ? item.bufferRate : (ing.bufferRate || getProfile().bufferRate || 5);
@@ -65,7 +71,7 @@ const CalculatorPage = (() => {
     return MEAL_KEYS.map(mk => {
       const mg = getMealGuests(mk);
       let totalKg = 0, totalCost = 0;
-      state.meals[mk].items.forEach(item => {
+      getCurrentPlan().meals[mk].items.forEach(item => {
         const ing = getIngredientById(item.ingredientId);
         if(!ing) return;
         const bufRate = (item.bufferRate !== undefined) ? item.bufferRate : (ing.bufferRate || getProfile().bufferRate || 5);
@@ -85,7 +91,7 @@ const CalculatorPage = (() => {
 
   function renderMealTab(){
     const mk = state.currentMeal;
-    const meal = state.meals[mk];
+    const meal = getCurrentPlan().meals[mk];
     const mg = getMealGuests(mk);
     const bufRate = getProfile().bufferRate || 5;
     const MEAL_LABELS = { breakfast: 'มื้อเช้า', lunch: 'มื้อกลางวัน', dinner: 'มื้อเย็น' };
@@ -167,18 +173,21 @@ const CalculatorPage = (() => {
     });
 
     document.getElementById('meal-rate-inp').addEventListener('change', e => {
-      state.meals[mk].mealRate = Number(e.target.value) || 0;
+      getCurrentPlan().meals[mk].mealRate = Number(e.target.value) || 0;
+      isDirty = true;
       renderMealTab(); renderDashboard();
     });
     mealContent.querySelectorAll('.item-grams').forEach(inp => {
       inp.addEventListener('change', e => {
-        state.meals[mk].items[+inp.dataset.idx].gramsPerPerson = Number(e.target.value) || 0;
+        getCurrentPlan().meals[mk].items[+inp.dataset.idx].gramsPerPerson = Number(e.target.value) || 0;
+        isDirty = true;
         renderMealTab(); renderDashboard();
       });
     });
     mealContent.querySelectorAll('.item-price').forEach(inp => {
       inp.addEventListener('change', e => {
-        state.meals[mk].items[+inp.dataset.idx].pricePerKg = Number(e.target.value) || 0;
+        getCurrentPlan().meals[mk].items[+inp.dataset.idx].pricePerKg = Number(e.target.value) || 0;
+        isDirty = true;
         renderMealTab(); renderDashboard();
       });
     });
@@ -186,26 +195,28 @@ const CalculatorPage = (() => {
       inp.addEventListener('input', e => {
         const idx = +inp.dataset.idx;
         const val = Number(e.target.value);
-        state.meals[mk].items[idx].bufferRate = val;
+        getCurrentPlan().meals[mk].items[idx].bufferRate = val;
         const valEl = inp.parentElement.querySelector('.item-buf-val');
         if(valEl) valEl.textContent = val + '%';
       });
       inp.addEventListener('change', e => {
-        state.meals[mk].items[+inp.dataset.idx].bufferRate = Number(e.target.value);
+        getCurrentPlan().meals[mk].items[+inp.dataset.idx].bufferRate = Number(e.target.value);
+        isDirty = true;
         renderMealTab(); renderDashboard();
       });
     });
     mealContent.querySelectorAll('.item-remove').forEach(btn => {
       btn.addEventListener('click', () => {
-        state.meals[mk].items.splice(+btn.dataset.idx, 1);
+        getCurrentPlan().meals[mk].items.splice(+btn.dataset.idx, 1);
+        isDirty = true;
         renderMealTab(); renderDashboard();
       });
     });
     UI.makeSearch('meal-search-wrap', item => {
-      if(state.meals[mk].items.find(i => i.ingredientId === item.id)){
+      if(getCurrentPlan().meals[mk].items.find(i => i.ingredientId === item.id)){
         UI.toast('มีสินค้านี้แล้ว', 'error'); return;
       }
-      state.meals[mk].items.push({
+      getCurrentPlan().meals[mk].items.push({
         ingredientId: item.id,
         gramsPerPerson: item.defaultGrams?.[mk] || 0,
         pricePerKg: item.pricePerKg,
@@ -215,18 +226,25 @@ const CalculatorPage = (() => {
     });
   }
 
-  function importMenuData(menuId, mk) {
+  function importMenuData(menuId, mk, silent = false) {
     const menus = DB.getMenus();
     const menu = menus.find(m => m.id === menuId);
     if(menu) {
+      if (!getCurrentPlan().meals[mk].addedMenus) {
+        getCurrentPlan().meals[mk].addedMenus = [];
+      }
+      if (!getCurrentPlan().meals[mk].addedMenus.includes(menuId)) {
+        getCurrentPlan().meals[mk].addedMenus.push(menuId);
+      }
+
       menu.items.forEach(mi => {
-        const existing = state.meals[mk].items.find(i => i.ingredientId === mi.ingredientId);
+        const existing = getCurrentPlan().meals[mk].items.find(i => i.ingredientId === mi.ingredientId);
         if(existing) {
           existing.gramsPerPerson += mi.gramsPerPerson || 0;
         } else {
           const ing = getIngredientById(mi.ingredientId);
           if(ing) {
-            state.meals[mk].items.push({
+            getCurrentPlan().meals[mk].items.push({
               ingredientId: mi.ingredientId,
               gramsPerPerson: mi.gramsPerPerson || 0,
               pricePerKg: ing.pricePerKg,
@@ -235,9 +253,44 @@ const CalculatorPage = (() => {
           }
         }
       });
-      UI.toast(`นำเข้าเมนู "${menu.name}" เรียบร้อย`);
-      renderMealTab(); renderDashboard();
+      isDirty = true;
+      if(!silent) {
+        UI.toast(`นำเข้าเมนู "${menu.name}" เรียบร้อย`);
+        renderMealTab(); renderDashboard();
+      }
     }
+  }
+
+  function removeMenuData(menuId, mk, silent = false) {
+    const menus = DB.getMenus();
+    const menu = menus.find(m => m.id === menuId);
+    const meal = getCurrentPlan().meals[mk];
+    if(menu && meal && meal.addedMenus) {
+      const idx = meal.addedMenus.indexOf(menuId);
+      if(idx > -1) {
+        meal.addedMenus.splice(idx, 1);
+        
+        menu.items.forEach(mi => {
+          const existing = meal.items.find(i => i.ingredientId === mi.ingredientId);
+          if (existing) {
+            existing.gramsPerPerson -= (mi.gramsPerPerson || 0);
+          }
+        });
+        
+        meal.items = meal.items.filter(i => i.gramsPerPerson > 0);
+        
+        isDirty = true;
+        if(!silent) {
+          UI.toast(`ลบเมนู "${menu.name}" เรียบร้อย`);
+          renderMealTab(); renderDashboard();
+        }
+      }
+    }
+  }
+
+  function forceRenderTabs() {
+    renderMealTab();
+    renderDashboard();
   }
 
   // ========== DASHBOARD ==========
@@ -335,7 +388,7 @@ const CalculatorPage = (() => {
     ).join('');
 
     // Final order table
-    const days = state.days || 1;
+    const days = getCurrentPlan().days || 1;
     const orderItems = summaryItems.map(item => {
       const netKg = item.orderKg * days;
       const netCost = item.cost * days;
@@ -378,7 +431,7 @@ const CalculatorPage = (() => {
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
             <div style="display:flex;align-items:center;gap:6px">
               <label style="font-size:12px;color:#64748B">บันทึกของวันที่:</label>
-              <input type="date" id="plan-date-inp" value="${state.plan_date}" style="width:130px; font-size:12px; padding:4px 8px" />
+              <input type="date" id="plan-date-inp" value="${getCurrentPlan().plan_date}" style="width:130px; font-size:12px; padding:4px 8px" />
             </div>
             <div style="display:flex;align-items:center;gap:6px">
               <label style="font-size:12px;color:#64748B">จำนวนวัน:</label>
@@ -445,47 +498,104 @@ const CalculatorPage = (() => {
       </div>`;
 
     document.getElementById('days-inp')?.addEventListener('change', e => {
-      state.days = Math.max(1, Number(e.target.value)||1);
+      getCurrentPlan().days = Math.max(1, Number(e.target.value)||1);
+      isDirty = true;
       renderDashboard();
     });
     document.getElementById('plan-date-inp')?.addEventListener('change', e => {
-      state.plan_date = e.target.value || new Date().toISOString().slice(0,10);
+      getCurrentPlan().plan_date = e.target.value || new Date().toISOString().slice(0,10);
+      isDirty = true;
     });
-    document.getElementById('btn-save-plan')?.addEventListener('click', savePlan);
+    document.getElementById('btn-save-plan')?.addEventListener('click', () => savePlan('confirmed'));
     document.getElementById('btn-print')?.addEventListener('click', () => window.print());
     document.getElementById('btn-quote')?.addEventListener('click', () => UI.toast('ฟีเจอร์ใบเสนอราคากำลังพัฒนา'));
   }
 
-  function savePlan(){
-    const p = getProfile();
-    if(!p.businessName){ UI.toast('กรุณากรอกข้อมูลโรงแรมในหน้า "โปรไฟล์" ก่อน', 'error'); return; }
-    const items = computeSummary();
-    const total = items.reduce((a,i)=>a+i.cost,0);
-    const plan = {
-      id: state.id || undefined,
-      plan_date: state.plan_date,
-      business_name: p.businessName, contact_name: p.contactName||'',
-      contact_phone: p.contactPhone||'', delivery_address: p.deliveryAddress||'',
-      customer_type: p.customerType||'โรงแรม',
-      total_rooms: p.totalRooms, occupancy_rate: p.occupancyRate,
-      guests_per_room: p.guestsPerRoom, buffer_rate: p.bufferRate,
-      days: state.days, total_guests: getTotalGuests(),
-      meals: JSON.parse(JSON.stringify(state.meals)),
-      summary_items: items, total_cost: total * state.days, status: 'confirmed',
+  function savePlan(status, silent = false) {
+    if (!state.plans.length) return;
+    
+    const group = {
+      id: state.planGroupId || 'GROUP-' + Date.now() + Math.random().toString(36).substr(2, 5),
+      status: status,
+      created_date: Date.now(),
+      updated_date: Date.now(),
+      plans: JSON.parse(JSON.stringify(state.plans)),
     };
-    DB.savePlan(plan);
-    UI.toast('บันทึกแผนเรียบร้อย');
-    showPage('daily-plans');
+    
+    if (state.plans.length > 1) {
+      group.name = `แผนชุดวันที่ ${state.plans[0].plan_date} ถึง ${state.plans[state.plans.length - 1].plan_date}`;
+      group.plan_date = `${state.plans[0].plan_date} - ${state.plans[state.plans.length - 1].plan_date}`;
+    } else {
+      group.name = `แผนวันที่ ${state.plans[0].plan_date}`;
+      group.plan_date = state.plans[0].plan_date;
+    }
+
+    let grandTotalCost = 0;
+    let grandTotalGuests = 0;
+    const combinedItemsMap = {};
+
+    state.plans.forEach(planState => {
+      const oldIdx = state.currentDateIdx;
+      state.currentDateIdx = state.plans.indexOf(planState);
+      
+      const p = planState.guestConfig || getProfile();
+      let dayGuests = 0;
+      if(p.useManualGuests) dayGuests = Number(p.manualGuests)||0;
+      else dayGuests = Calc.totalGuests(Number(p.totalRooms)||0, Number(p.occupancyRate)||0, Number(p.guestsPerRoom)||1);
+      
+      grandTotalGuests += dayGuests;
+      
+      const items = computeSummary();
+      const dayTotalCost = items.reduce((sum, i) => sum + i.cost, 0);
+      grandTotalCost += dayTotalCost;
+      
+      items.forEach(item => {
+        if (!combinedItemsMap[item.ingredientId]) {
+          combinedItemsMap[item.ingredientId] = { ...item };
+        } else {
+          combinedItemsMap[item.ingredientId].reqKg += item.reqKg;
+          combinedItemsMap[item.ingredientId].orderKg += item.orderKg;
+          combinedItemsMap[item.ingredientId].cost += item.cost;
+        }
+      });
+      
+      state.currentDateIdx = oldIdx;
+    });
+
+    group.total_cost = grandTotalCost;
+    group.total_guests = grandTotalGuests;
+    group.summary_items = Object.values(combinedItemsMap);
+    group.business_name = getProfile().businessName || '';
+    group.contact_name = getProfile().contactName || '';
+    group.contact_phone = getProfile().phone || '';
+
+    DB.savePlan(group);
+    state.planGroupId = group.id;
+
+    if(!silent) {
+      isDirty = false;
+      UI.toast(status === 'draft' ? 'บันทึกแบบร่างเรียบร้อย' : 'บันทึกแผนเรียบร้อย');
+      showPage('daily-plans');
+    }
   }
 
   function render(container){
-    const p = getProfile();
+    const p = getCurrentPlan()?.guestConfig || getProfile();
 
     container.innerHTML = `
       <div class="page-header">
         <div class="section-title">คำนวณยอดสั่งซื้อ</div>
         <div class="section-sub">เพิ่มวัตถุดิบแต่ละมื้อ ระบบจะคำนวณและสรุปยอดด้านล่างอัตโนมัติ</div>
       </div>
+      
+      <!-- Date Tabs -->
+      ${state.plans.length > 1 ? `<div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:16px;">
+        ${state.plans.map((pl, idx) => `
+          <button class="btn-date-tab ${idx === state.currentDateIdx ? 'active' : ''}" data-idx="${idx}" style="padding:8px 16px; border-radius:8px; border:1px solid #E2E8F0; background:${idx === state.currentDateIdx ? '#F97316' : '#FFF'}; color:${idx === state.currentDateIdx ? '#FFF' : '#64748B'}; cursor:pointer; font-weight:600; white-space:nowrap; transition:all 0.2s;">
+            ${new Date(pl.plan_date).toLocaleDateString('th-TH', {day:'numeric', month:'short'})}
+          </button>
+        `).join('')}
+      </div>` : ''}
 
       <!-- File Upload / Dropzone -->
       <div class="card" style="margin-bottom:20px; background:#F8FAFC; border:2px dashed #CBD5E1; text-align:center; transition:all 0.2s" id="pms-dropzone">
@@ -560,6 +670,86 @@ const CalculatorPage = (() => {
       <div id="dashboard-section"></div>
     `;
 
+    function showExtResult() {
+      const dropzone = document.getElementById('pms-dropzone');
+      const resultContainer = document.getElementById('pms-result-container');
+      if (!getCurrentPlan().ext) return;
+      const ext = getCurrentPlan().ext;
+      
+      dropzone.style.display = 'none';
+      const dateStr = new Date(state.plan_date).toLocaleDateString('th-TH');
+      resultContainer.style.display = '';
+      resultContainer.innerHTML = `
+        <div class="card" style="border-left:4px solid #10B981">
+          <div class="card-header" style="display:flex; justify-content:space-between; align-items:center">
+            <h3 style="color:#16A34A; display:flex; align-items:center; gap:8px">
+              ✅ <span>ดึงข้อมูลสำเร็จจากไฟล์ <strong>${getCurrentPlan().fileName || 'PMS Report'}</strong> <br><small style="color:#64748B; font-weight:400; font-size:12px">(สกัดข้อมูลจาก Sheet วันที่: ${dateStr})</small></span>
+            </h3>
+            <button class="btn-secondary sm" id="btn-reset-dropzone">อัปโหลดใหม่</button>
+          </div>
+          <div class="card-body grid-3" style="gap:20px; align-items:start">
+            <div>
+              <div style="font-weight:700; color:#475569; margin-bottom:12px; font-size:12px; letter-spacing:0.5px">OVERALL OCCUPANCY</div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Total Available Rooms</span><strong>${ext.totalRooms}</strong></div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Rooms Occupied</span><strong>${ext.roomsOccupied}</strong></div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Occupancy Rate</span><strong style="color:#10B981">${ext.occRate}%</strong></div>
+            </div>
+            <div>
+              <div style="font-weight:700; color:#475569; margin-bottom:12px; font-size:12px; letter-spacing:0.5px">GUEST DEMOGRAPHICS</div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Total Guests In House</span><strong style="color:#F97316">${ext.totalGuests}</strong></div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Adults</span><strong>${ext.adults}</strong></div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Children</span><strong>${ext.children}</strong></div>
+            </div>
+            <div>
+              <div style="font-weight:700; color:#475569; margin-bottom:12px; font-size:12px; letter-spacing:0.5px">SUMMARY NATIONALITY</div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>India</span><strong>${ext.nat_india}</strong></div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Europe/Western</span><strong>${ext.nat_europe}</strong></div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>China</span><strong>${ext.nat_china}</strong></div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Domestic/Thai</span><strong>${ext.nat_domestic}</strong></div>
+            </div>
+          </div>
+          </div>
+          <style>@keyframes aiPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }</style>
+          <div style="background:#F0FDF4; padding:16px 20px; font-size:14px; color:#166534; display:flex; align-items:flex-start; gap:12px; border-top:1px solid #DCFCE7; border-radius:0 0 8px 8px">
+            <div style="font-size:20px; animation: aiPulse 2s infinite">✨</div>
+            <div>
+              <strong style="color:#15803D; margin-bottom:4px; display:block">Gemini AI Analysis</strong>
+              <div id="ai-insight-text" style="line-height:1.5; color:#14532D">กำลังประมวลผล...</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('btn-reset-dropzone').addEventListener('click', () => {
+        getCurrentPlan().ext = null;
+        getCurrentPlan().fileName = null;
+        isDirty = true;
+        render(container);
+      });
+
+      // Simulate Gemini Analysis Typewriter Effect
+      const aiTextContainer = document.getElementById('ai-insight-text');
+      const msgs = [];
+      if(ext.occRate > 80) msgs.push("อัตราการเข้าพักสูงมาก แนะนำสต็อกวัตถุดิบเผื่อ Buffer เพิ่ม 5-10%");
+      if(ext.children / (ext.totalGuests||1) > 0.15) msgs.push("สัดส่วนเด็กเยอะ แนะนำเพิ่มเมนูเด็ก (ของทอด, ไส้กรอก)");
+      if(ext.nat_india / (ext.totalGuests||1) > 0.25) msgs.push("สัดส่วนแขกชาวอินเดียสูง แนะนำพิจารณาเพิ่มวัตถุดิบไก่/มังสวิรัติ หรือลดสัดส่วนเนื้อวัว/หมู");
+      if(ext.nat_china / (ext.totalGuests||1) > 0.25) msgs.push("แขกชาวจีนเยอะ แนะนำให้เตรียมเพิ่มเมนูข้าวต้ม หรือปาท่องโก๋");
+      if(ext.nat_europe / (ext.totalGuests||1) > 0.35) msgs.push("สัดส่วนแขกยุโรป/ตะวันตกสูง ควรเน้นการเตรียมเมนูอาหารเช้าแบบ American/Continental Breakfast");
+      
+      const fullText = msgs.length ? msgs.join(" และ ") : "ข้อมูลยอดเข้าพักอยู่ในระดับปกติ สามารถใช้แผนการสั่งซื้อมาตรฐานได้ครับ";
+      
+      aiTextContainer.textContent = '';
+      let typeIdx = 0;
+      const typeInterval = setInterval(() => {
+        if(typeIdx < fullText.length) {
+          aiTextContainer.textContent += fullText.charAt(typeIdx);
+          typeIdx++;
+        } else {
+          clearInterval(typeInterval);
+        }
+      }, 30);
+    }
+
     // File upload logic
     const dropzone = document.getElementById('pms-dropzone');
     const fileInput = document.getElementById('pms-file-input');
@@ -586,149 +776,64 @@ const CalculatorPage = (() => {
           const data = new Uint8Array(e.target.result);
           const workbook = XLSX.read(data, {type: 'array'});
           
-          let targetSheetName = null;
-          // Look for matching date in sheets
-          workbook.SheetNames.forEach(sheetName => {
-            if (sheetName === state.plan_date) {
-              targetSheetName = sheetName;
-            } else {
-              const ws = workbook.Sheets[sheetName];
-              for (const key in ws) {
-                if (key[0] === '!') continue;
-                if (ws[key].v && String(ws[key].v).includes(state.plan_date)) {
-                  targetSheetName = sheetName;
-                  break;
+          state.plans.forEach(plan => {
+            let targetSheetName = null;
+            // Look for matching date in sheets
+            workbook.SheetNames.forEach(sheetName => {
+              if (sheetName === plan.plan_date) {
+                targetSheetName = sheetName;
+              } else {
+                const ws = workbook.Sheets[sheetName];
+                for (const key in ws) {
+                  if (key[0] === '!') continue;
+                  if (ws[key].v && String(ws[key].v).includes(plan.plan_date)) {
+                    targetSheetName = sheetName;
+                    break;
+                  }
                 }
               }
+            });
+
+            if (targetSheetName) {
+              const ws = workbook.Sheets[targetSheetName];
+              const json = XLSX.utils.sheet_to_json(ws, {header: 1});
+              let ext = {
+                totalRooms: 0, roomsOccupied: 0, occRate: 0,
+                totalGuests: 0, adults: 0, children: 0,
+                nat_india: 0, nat_europe: 0, nat_china: 0, nat_domestic: 0
+              };
+              json.forEach(row => {
+                if(!row || !row[0] || !row[1]) return;
+                const label = String(row[0]).toLowerCase();
+                const val = parseFloat(String(row[1]).replace(/[^0-9.]/g, '')) || 0;
+                
+                if(label.includes('total available rooms')) ext.totalRooms = val;
+                if(label.includes('rooms occupied')) ext.roomsOccupied = val;
+                if(label.includes('occupancy rate')) {
+                  ext.occRate = val <= 1 && val > 0 ? val * 100 : val;
+                }
+                if(label.includes('total guests in house') || label.includes('total guests')) ext.totalGuests = val;
+                if(label.includes('adults')) ext.adults = val;
+                if(label.includes('children')) ext.children = val;
+                if(label.includes('india')) ext.nat_india = val;
+                if(label.includes('europe') || label.includes('western')) ext.nat_europe = val;
+                if(label.includes('china')) ext.nat_china = val;
+                if(label.includes('domestic') || label.includes('thai')) ext.nat_domestic = val;
+              });
+              
+              plan.ext = ext;
+              plan.fileName = file.name;
+              
+              if(!plan.guestConfig) plan.guestConfig = Object.assign({}, getProfile());
+              plan.guestConfig.totalRooms = ext.totalRooms;
+              plan.guestConfig.occupancyRate = ext.occRate;
+              plan.guestConfig.guestsPerRoom = ext.roomsOccupied ? Number((ext.totalGuests / ext.roomsOccupied).toFixed(1)) : 1;
             }
           });
-
-          if (!targetSheetName) {
-            const overlay = document.createElement('div');
-            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
-            overlay.innerHTML = `
-              <div style="background:#fff;padding:24px;border-radius:12px;width:100%;max-width:400px;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.1);">
-                <div style="font-size:40px;margin-bottom:12px">⚠️</div>
-                <h3 style="margin-bottom:12px;color:#1E293B">ไม่มีข้อมูล</h3>
-                <p style="color:#64748B;margin-bottom:20px;line-height:1.5">ไม่พบข้อมูลของวันที่ <strong>${state.plan_date}</strong> ในไฟล์นี้<br>โปรดตรวจสอบอีกครั้ง</p>
-                <button class="btn-primary full">ตกลง</button>
-              </div>
-            `;
-            overlay.querySelector('button').addEventListener('click', () => overlay.remove());
-            document.body.appendChild(overlay);
-            dropzone.innerHTML = resetHTML;
-            return;
-          }
-
-          const ws = workbook.Sheets[targetSheetName];
-          const json = XLSX.utils.sheet_to_json(ws, {header: 1});
           
-          let ext = {
-            totalRooms: 0, roomsOccupied: 0, occRate: 0,
-            totalGuests: 0, adults: 0, children: 0,
-            nat_india: 0, nat_europe: 0, nat_china: 0, nat_domestic: 0
-          };
-
-          json.forEach(row => {
-            if(!row || !row[0] || !row[1]) return;
-            const label = String(row[0]).toLowerCase();
-            const val = parseFloat(String(row[1]).replace(/[^0-9.]/g, '')) || 0;
-            
-            if(label.includes('total available rooms')) ext.totalRooms = val;
-            if(label.includes('rooms occupied')) ext.roomsOccupied = val;
-            if(label.includes('occupancy rate')) {
-              ext.occRate = val <= 1 && val > 0 ? val * 100 : val;
-            }
-            if(label.includes('total guests in house') || label.includes('total guests')) ext.totalGuests = val;
-            if(label.includes('adults')) ext.adults = val;
-            if(label.includes('children')) ext.children = val;
-            if(label.includes('india')) ext.nat_india = val;
-            if(label.includes('europe') || label.includes('western')) ext.nat_europe = val;
-            if(label.includes('china')) ext.nat_china = val;
-            if(label.includes('domestic') || label.includes('thai')) ext.nat_domestic = val;
-          });
-          
-          dropzone.style.display = 'none';
-
-          document.getElementById('calc-use-manual').checked = false;
-          document.getElementById('calc-room-fields').style.display = '';
-          document.getElementById('calc-manual-fields').style.display = 'none';
-          document.getElementById('calc-total-rooms').value = ext.totalRooms;
-          document.getElementById('calc-occ-rate').value = ext.occRate;
-          document.getElementById('calc-guests-room').value = ext.roomsOccupied ? (ext.totalGuests / ext.roomsOccupied).toFixed(1) : 1;
-          saveAndRefresh();
-
-          const dateStr = new Date(state.plan_date).toLocaleDateString('th-TH');
-          resultContainer.style.display = '';
-          resultContainer.innerHTML = `
-            <div class="card" style="border-left:4px solid #10B981">
-              <div class="card-header" style="display:flex; justify-content:space-between; align-items:center">
-                <h3 style="color:#16A34A; display:flex; align-items:center; gap:8px">
-                  ✅ <span>ดึงข้อมูลสำเร็จจากไฟล์ <strong>${file.name}</strong> <br><small style="color:#64748B; font-weight:400; font-size:12px">(สกัดข้อมูลจาก Sheet วันที่: ${dateStr})</small></span>
-                </h3>
-                <button class="btn-secondary sm" id="btn-reset-dropzone">อัปโหลดใหม่</button>
-              </div>
-              <div class="card-body grid-3" style="gap:20px; align-items:start">
-                <div>
-                  <div style="font-weight:700; color:#475569; margin-bottom:12px; font-size:12px; letter-spacing:0.5px">OVERALL OCCUPANCY</div>
-                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Total Available Rooms</span><strong>${ext.totalRooms}</strong></div>
-                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Rooms Occupied</span><strong>${ext.roomsOccupied}</strong></div>
-                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Occupancy Rate</span><strong style="color:#10B981">${ext.occRate}%</strong></div>
-                </div>
-                <div>
-                  <div style="font-weight:700; color:#475569; margin-bottom:12px; font-size:12px; letter-spacing:0.5px">GUEST DEMOGRAPHICS</div>
-                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Total Guests In House</span><strong style="color:#F97316">${ext.totalGuests}</strong></div>
-                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Adults</span><strong>${ext.adults}</strong></div>
-                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Children</span><strong>${ext.children}</strong></div>
-                </div>
-                <div>
-                  <div style="font-weight:700; color:#475569; margin-bottom:12px; font-size:12px; letter-spacing:0.5px">SUMMARY NATIONALITY</div>
-                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>India</span><strong>${ext.nat_india}</strong></div>
-                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Europe/Western</span><strong>${ext.nat_europe}</strong></div>
-                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>China</span><strong>${ext.nat_china}</strong></div>
-                  <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px"><span>Domestic/Thai</span><strong>${ext.nat_domestic}</strong></div>
-                </div>
-              </div>
-              </div>
-              <style>@keyframes aiPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }</style>
-              <div style="background:#F0FDF4; padding:16px 20px; font-size:14px; color:#166534; display:flex; align-items:flex-start; gap:12px; border-top:1px solid #DCFCE7; border-radius:0 0 8px 8px">
-                <div style="font-size:20px; animation: aiPulse 2s infinite">✨</div>
-                <div>
-                  <strong style="color:#15803D; margin-bottom:4px; display:block">Gemini AI Analysis</strong>
-                  <div id="ai-insight-text" style="line-height:1.5; color:#14532D">กำลังประมวลผล...</div>
-                </div>
-              </div>
-            </div>
-          `;
-          document.getElementById('btn-reset-dropzone').addEventListener('click', () => {
-            document.getElementById('pms-dropzone').style.display='';
-            document.getElementById('pms-dropzone').innerHTML = resetHTML;
-            document.getElementById('pms-result-container').style.display='none';
-          });
+          isDirty = true;
+          render(document.getElementById('subpage-calculator'));
           UI.toast('อัปเดตตัวเลขเข้าฟอร์มเรียบร้อยแล้ว');
-
-          // Simulate Gemini Analysis Typewriter Effect
-          const aiTextContainer = document.getElementById('ai-insight-text');
-          const msgs = [];
-          if(ext.occRate > 80) msgs.push("อัตราการเข้าพักสูงมาก แนะนำสต็อกวัตถุดิบเผื่อ Buffer เพิ่ม 5-10%");
-          if(ext.children / (ext.totalGuests||1) > 0.15) msgs.push("สัดส่วนเด็กเยอะ แนะนำเพิ่มเมนูเด็ก (ของทอด, ไส้กรอก)");
-          if(ext.nat_india / (ext.totalGuests||1) > 0.25) msgs.push("สัดส่วนแขกชาวอินเดียสูง แนะนำพิจารณาเพิ่มวัตถุดิบไก่/มังสวิรัติ หรือลดสัดส่วนเนื้อวัว/หมู");
-          if(ext.nat_china / (ext.totalGuests||1) > 0.25) msgs.push("แขกชาวจีนเยอะ แนะนำให้เตรียมเพิ่มเมนูข้าวต้ม หรือปาท่องโก๋");
-          if(ext.nat_europe / (ext.totalGuests||1) > 0.35) msgs.push("สัดส่วนแขกยุโรป/ตะวันตกสูง ควรเน้นการเตรียมเมนูอาหารเช้าแบบ American/Continental Breakfast");
-          
-          const fullText = msgs.length ? msgs.join(" และ ") : "ข้อมูลยอดเข้าพักอยู่ในระดับปกติ สามารถใช้แผนการสั่งซื้อมาตรฐานได้ครับ";
-          
-          aiTextContainer.textContent = '';
-          let typeIdx = 0;
-          const typeInterval = setInterval(() => {
-            if(typeIdx < fullText.length) {
-              aiTextContainer.textContent += fullText.charAt(typeIdx);
-              typeIdx++;
-            } else {
-              clearInterval(typeInterval);
-            }
-          }, 30);
-
         } catch(err) {
           console.error(err);
           UI.toast('รูปแบบไฟล์ไม่ถูกต้อง หรือไม่สามารถอ่านไฟล์ได้', 'error');
@@ -765,7 +870,11 @@ const CalculatorPage = (() => {
 
     // Guest config logic
     function saveAndRefresh() {
-      const p = getProfile();
+      let p = getCurrentPlan().guestConfig;
+      if (!p) {
+        p = Object.assign({}, getProfile());
+        getCurrentPlan().guestConfig = p;
+      }
       p.useManualGuests = document.getElementById('calc-use-manual').checked;
       p.totalRooms = Number(document.getElementById('calc-total-rooms').value) || 0;
       p.occupancyRate = Number(document.getElementById('calc-occ-rate').value) || 0;
@@ -797,17 +906,59 @@ const CalculatorPage = (() => {
       });
     });
 
+    container.querySelectorAll('.btn-date-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.currentDateIdx = parseInt(btn.dataset.idx, 10);
+        render(container);
+      });
+    });
+
     renderMealTab();
     renderDashboard();
+
+    if (getCurrentPlan().ext) {
+      showExtResult();
+    }
+  }
+
+  function loadMultiPlan(plans, groupId = null) {
+    if(!plans || !plans.length) return;
+    state.plans = JSON.parse(JSON.stringify(plans));
+    state.planGroupId = groupId;
+    state.currentDateIdx = 0;
+    state.currentMeal = 'breakfast';
+    isDirty = false;
   }
 
   function loadPlan(plan) {
-    state.id = plan.id;
-    state.plan_date = plan.plan_date;
-    state.days = plan.days;
-    state.meals = JSON.parse(JSON.stringify(plan.meals));
-    state.currentMeal = 'breakfast';
+    if (plan.plans) {
+      loadMultiPlan(plan.plans);
+    } else {
+      loadMultiPlan([plan]);
+    }
   }
 
-  return { render, loadPlan, importMenuData };
+  function hasUnsavedChanges() {
+    return isDirty;
+  }
+
+  function saveDraft() {
+    savePlan('draft');
+  }
+
+  function resetState() {
+    state = {
+      planGroupId: null,
+      plans: [{
+        id: null, plan_date: new Date().toISOString().slice(0,10), days: 1,
+        meals: { breakfast: { mealRate: 90, items: [] }, lunch: { mealRate: 60, items: [] }, dinner: { mealRate: 70, items: [] } },
+        ext: null, fileName: null, guestConfig: null
+      }],
+      currentDateIdx: 0,
+      currentMeal: 'breakfast'
+    };
+    isDirty = false;
+  }
+
+  return { render, loadPlan, loadMultiPlan, importMenuData, removeMenuData, forceRenderTabs, hasUnsavedChanges, saveDraft, resetState, getCurrentPlan };
 })();
