@@ -11,7 +11,7 @@ const AdminDashboardPage = (() => {
 
   function render(container){
     currentContainer = container;
-    const orders = DB.getAllAdminOrders();
+    const orders = DB.getAllAdminOrders().filter(o => o.status === 'submitted');
     const aggregated = aggregateStock(orders);
 
     let summaryHtml = '';

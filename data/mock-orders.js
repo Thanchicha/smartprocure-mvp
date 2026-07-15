@@ -1,5 +1,5 @@
 (function initMockData() {
-  if (!localStorage.getItem('sp_mock_initialized_v8')) {
+  if (!localStorage.getItem('sp_mock_initialized_v9')) {
     
     // Generate dates
     function generateTargetDates(start, end) {
@@ -105,7 +105,7 @@
         id: `mock_${username}_${Date.now()}`,
         created_date: Date.now() - Math.floor(Math.random() * 1000 * 60 * 60 * 24 * 7), // 0-7 days ago
         updated_date: Date.now(),
-        status: 'confirmed',
+        status: 'submitted',
         target_dates: targetDates,
         total_net_cost: totalNetCost,
         net_order_items: net_order_items
@@ -118,25 +118,8 @@
       window.MOCK_CREDENTIALS.push({username: username, password: 'password', name: `Hotel ${i}`, role: 'customer'});
     }
 
-    localStorage.setItem('sp_mock_initialized_v8', 'true');
+    localStorage.setItem('sp_mock_initialized_v9', 'true');
     console.log("Mock data for 15 hotels initialized.");
   }
   
-  // Cleanup old orders that don't have target_dates
-  if (!localStorage.getItem('sp_mock_cleaned_nodates_v2')) {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith('sp_batch_orders_')) {
-        try {
-          const orders = JSON.parse(localStorage.getItem(k) || '[]');
-          const filtered = orders.filter(o => o.target_dates && o.target_dates.length > 0);
-          if (filtered.length !== orders.length) {
-            localStorage.setItem(k, JSON.stringify(filtered));
-          }
-        } catch(e) {}
-      }
-    }
-    localStorage.setItem('sp_mock_cleaned_nodates', 'true');
-    console.log("Cleaned up old orders without target dates.");
-  }
 })();
