@@ -70,6 +70,11 @@ const DailyPlansPage = (() => {
             <label>ถึงวันที่</label>
             <input type="date" id="new-plan-end" style="width:100%" value="${new Date().toISOString().slice(0,10)}" />
           </div>
+          <div class="form-group" style="margin-top:16px; padding:12px; background:#F8FAFC; border:1px dashed #CBD5E1; border-radius:8px;">
+            <label style="font-weight:600; color:#475569; display:block; margin-bottom:8px;">นำเข้า Daily Report (CSV)</label>
+            <input type="file" id="csv-upload" accept=".csv" style="font-size:12px; width:100%;" />
+            <div style="font-size:11px; color:#94A3B8; margin-top:4px;">ระบบจะดึงเฉพาะสถิติสัญชาติและมื้ออาหาร (ไม่บันทึกชื่อลูกค้า/เบอร์ห้อง)</div>
+          </div>
           <div style="display:flex; gap:10px; margin-top:24px;">
             <button class="btn-secondary" id="btn-cancel-add" style="flex:1">ยกเลิก</button>
             <button class="btn-primary" id="btn-confirm-add" style="flex:1">เริ่มคำนวณ</button>
@@ -101,20 +106,111 @@ const DailyPlansPage = (() => {
         return;
       }
       
-      modal.style.display = 'none';
+      const fileInput = document.getElementById('csv-upload');
+      if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const csvText = e.target.result;
+          processCsvAndCreatePlan(csvText, sDate, eDate);
+        };
+        reader.readAsText(file);
+      } else {
+        createPlansFromDates(sDate, eDate, null);
+      }
+    });
+
+    function processCsvAndCreatePlan(csvText, sDate, eDate) {
+      const lines = csvText.split('\\n');
+      let isGuestList = false;
+      const headers = [];
+      const mealCounts = {
+        breakfast: { total: 0, adults: 0, children: 0, nat: {} },
+        lunch: { total: 0, adults: 0, children: 0, nat: {} },
+        dinner: { total: 0, adults: 0, children: 0, nat: {} }
+      };
       
+      let totalGuests = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+        
+        if (cols[0] === 'Total Guests In House') {
+          totalGuests = parseInt(cols[1]) || 0;
+        }
+
+        if (cols[0] === 'Guest Name' && cols.includes('Nationality') && cols.includes('Meal Plan Code')) {
+          isGuestList = true;
+          cols.forEach(c => headers.push(c));
+          continue;
+        }
+
+        if (isGuestList && headers.length > 0) {
+          if (!cols[0]) continue; // Skip empty rows
+          const row = {};
+          headers.forEach((h, idx) => {
+            row[h] = cols[idx];
+          });
+          
+          const nat = row['Nationality'] || 'Unknown';
+          const mealPlan = (row['Meal Plan Code'] || '').toUpperCase();
+          const isChild = (row['Adult/Child'] || '').toUpperCase() === 'CHILD';
+          
+          const addCount = (mealKey) => {
+            mealCounts[mealKey].total++;
+            if (isChild) mealCounts[mealKey].children++;
+            else mealCounts[mealKey].adults++;
+            mealCounts[mealKey].nat[nat] = (mealCounts[mealKey].nat[nat] || 0) + 1;
+          };
+
+          if (['BB', 'HB', 'FB'].includes(mealPlan)) addCount('breakfast');
+          if (['FB'].includes(mealPlan)) addCount('lunch');
+          if (['HB', 'FB'].includes(mealPlan)) addCount('dinner');
+        }
+      }
+      
+      const ext = {
+        totalGuests,
+        mealCounts
+      };
+      
+      createPlansFromDates(sDate, eDate, ext);
+    }
+
+    function createPlansFromDates(sDate, eDate, extData) {
+      modal.style.display = 'none';
       const plans = [];
       const curr = new Date(sDate);
+      
+      let guestConfig = null;
+      let mealsConfig = {
+        breakfast: { mealRate: 90, items: [] },
+        lunch:     { mealRate: 60, items: [] },
+        dinner:    { mealRate: 70, items: [] }
+      };
+
+      if (extData && extData.totalGuests > 0) {
+        guestConfig = Object.assign({}, DB.getProfile());
+        guestConfig.useManualGuests = true;
+        guestConfig.manualGuests = extData.totalGuests;
+        
+        mealsConfig.breakfast.mealRate = Math.round((extData.mealCounts.breakfast.total / extData.totalGuests) * 100) || 0;
+        mealsConfig.lunch.mealRate = Math.round((extData.mealCounts.lunch.total / extData.totalGuests) * 100) || 0;
+        mealsConfig.dinner.mealRate = Math.round((extData.mealCounts.dinner.total / extData.totalGuests) * 100) || 0;
+      }
+
       while(curr <= eDate) {
         const dStr = curr.toISOString().slice(0,10);
-        plans.push({
+        const plan = {
           id: null, plan_date: dStr, days: 1,
-          meals: {
-            breakfast: { mealRate: 90, items: [] },
-            lunch:     { mealRate: 60, items: [] },
-            dinner:    { mealRate: 70, items: [] }
-          }
-        });
+          meals: JSON.parse(JSON.stringify(mealsConfig))
+        };
+        if (guestConfig) plan.guestConfig = JSON.parse(JSON.stringify(guestConfig));
+        if (extData) plan.ext = JSON.parse(JSON.stringify(extData));
+        
+        plans.push(plan);
         curr.setDate(curr.getDate() + 1);
       }
       
@@ -122,7 +218,7 @@ const DailyPlansPage = (() => {
         CalculatorPage.loadMultiPlan(plans, null);
       }
       showPage('calculator');
-    });
+    }
 
     container.querySelectorAll('.plan-toggle').forEach(btn=>{
       btn.addEventListener('click',()=>{

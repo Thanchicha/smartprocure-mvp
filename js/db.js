@@ -88,7 +88,7 @@ const DB = {
 
   getMenus(){
     const u = Auth.getSession()?.username || 'default';
-    const initKey = `sp_menus_initialized_${u}`;
+    const initKey = `sp_menus_initialized_v2_${u}`;
     if(!localStorage.getItem(initKey)) {
       this._set(DB_KEYS.menus, DEFAULT_MENUS);
       localStorage.setItem(initKey, 'true');

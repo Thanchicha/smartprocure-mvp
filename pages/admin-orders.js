@@ -4,7 +4,7 @@ const AdminOrdersPage = (() => {
   let expandedId = null;
 
   function render(container){
-    const orders = DB.getAllAdminOrders();
+    const orders = DB.getAllAdminOrders().filter(o => o.status === 'submitted');
     container.innerHTML = `
       <div class="page-header">
         <div class="section-title">ออเดอร์ทั้งหมด (แอดมิน)</div>
@@ -28,13 +28,29 @@ const AdminOrdersPage = (() => {
     container.querySelectorAll('.order-print').forEach(btn=>{
       btn.addEventListener('click',()=>window.print());
     });
+    container.querySelectorAll('.cust-profile-btn').forEach(btn=>{
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation(); // prevent order toggle
+        const tenant = btn.dataset.tenant;
+        const p = getHotelProfile(tenant);
+        const html = `
+          <div class="info-row"><label>ชื่อกิจการ / โรงแรม</label><span>${p.businessName || tenant}</span></div>
+          <div class="info-row"><label>ประเภทลูกค้า</label><span>${p.customerType || '-'}</span></div>
+          <div class="info-row"><label>ชื่อผู้ติดต่อ</label><span>${p.contactName || '-'}</span></div>
+          <div class="info-row"><label>เบอร์โทร</label><span>${p.contactPhone || '-'}</span></div>
+          <div class="info-row"><label>ที่อยู่จัดส่ง</label><span>${p.shippingAddress || '-'}</span></div>
+        `;
+        UI.modal('ข้อมูลกิจการ / โรงแรม', html);
+      });
+    });
   }
 
-  function getHotelName(tenant) {
+  function getHotelProfile(tenant) {
     try {
       const p = JSON.parse(localStorage.getItem(`sp_profile_${tenant}`)||'{}');
-      return p.businessName || tenant;
-    } catch(e) { return tenant; }
+      p._tenant = tenant;
+      return p;
+    } catch(e) { return { _tenant: tenant }; }
   }
 
   function renderOrderCard(order){
@@ -43,7 +59,8 @@ const AdminOrdersPage = (() => {
     const total = order.total_net_cost||0;
     const STATUS = {draft:{label:'ร่าง',cls:'badge-stone'},confirmed:{label:'ยืนยันแล้ว',cls:'badge-moq-green'},submitted:{label:'ส่งแล้ว',cls:'badge-blue'}};
     const st = STATUS[order.status]||STATUS.confirmed;
-    const hotelName = getHotelName(order._tenant);
+    const profile = getHotelProfile(order._tenant);
+    const hotelName = profile.businessName || order._tenant;
 
     let detail = '';
     if(isOpen){
@@ -58,8 +75,7 @@ const AdminOrdersPage = (() => {
         </tr>`).join('');
 
       // Donut chart (SVG)
-      const _c = { 'ชิ้นส่วนวัว':'#EF4444', 'วัว/แปรรูป':'#B91C1C', 'ชิ้นส่วนหมู':'#EC4899', 'หมูแปรรูป':'#BE185D', 'ไก่/แปรรูป':'#EAB308', 'ปลา':'#06B6D4', 'กุ้ง':'#DC2626', 'หมึก':'#8B5CF6', 'หอย':'#F97316', 'ปู':'#F43F5E' };
-      const catColor = c => _c[c] || '#94A3B8';
+      const catColor = c => (typeof CAT_COLOR !== 'undefined' && CAT_COLOR[c]) ? CAT_COLOR[c] : '#94A3B8';
       const catMap = {};
       net.forEach(item => { catMap[item.category] = (catMap[item.category]||0) + (item.netKg||0); });
       const catEntries = Object.entries(catMap).filter(([,v])=>v>0);
@@ -131,11 +147,11 @@ const AdminOrdersPage = (() => {
             <div style="width:40px;height:40px;border-radius:10px;background:#F0FDF4;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#16A34A">Cust</div>
             <div>
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="font-weight:700;color:#1E293B">${hotelName}</span>
+                <span class="cust-profile-btn" data-tenant="${order._tenant}" style="font-weight:700;color:#1E293B;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:4px" title="คลิกดูข้อมูลกิจการ">${hotelName}</span>
                 <span class="badge ${st.cls}">${st.label}</span>
               </div>
               <div style="font-size:12px;color:#64748B;margin-top:2px">
-                ออเดอร์: ${order.order_name||'(ไม่มีชื่อ)'} &nbsp;·&nbsp; ${order.confirmed_at?new Date(order.confirmed_at).toLocaleDateString('th-TH'):''}
+                ออเดอร์: ${order.order_name||'(ไม่มีชื่อ)'} &nbsp;·&nbsp; วันที่รับของ: ${order.target_dates && order.target_dates.length ? order.target_dates.join(', ') : (order.confirmed_at?new Date(order.confirmed_at).toLocaleDateString('th-TH'):'ไม่ระบุ')}
               </div>
             </div>
           </div>

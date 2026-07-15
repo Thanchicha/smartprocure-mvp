@@ -25,7 +25,12 @@ const MenusPage = (() => {
               ${menu.nationality ? `<span class="badge" style="background:#E0E7FF;color:#4338CA">${menu.nationality}</span>` : ''}
               ${menu.targetAudience === 'Child' ? `<span class="badge" style="background:#FEF08A;color:#854D0E">👦 เด็ก</span>` : `<span class="badge" style="background:#E2E8F0;color:#475569">👨 ผู้ใหญ่</span>`}
             </div>
-            <div style="font-size:13px;color:#64748B;margin-top:4px">${menu.items.length} วัตถุดิบ</div>
+            <div style="font-size:13px;color:#64748B;margin-top:8px;display:flex;flex-direction:column;gap:4px">
+              ${menu.items.map(item => {
+                const ing = (typeof INGREDIENTS !== 'undefined' ? INGREDIENTS.find(i => i.id === item.ingredientId || i.code === item.ingredientId) : null) || { name: item.ingredientId };
+                return `<div>• ${ing.name} <span style="color:#94A3B8">(${item.gramsPerPerson} กรัม/คน)</span></div>`;
+              }).join('')}
+            </div>
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn-secondary btn-edit-menu" data-id="${menu.id}">แก้ไข</button>

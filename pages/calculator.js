@@ -1,6 +1,9 @@
 // SmartProcure — Calculator Page
 
 const CalculatorPage = (() => {
+  const catColor = c => (typeof CAT_COLOR !== 'undefined' && CAT_COLOR[c]) ? CAT_COLOR[c] : '#94A3B8';
+  const catBadgeHtml = c => (typeof CAT_BADGE !== 'undefined' && CAT_BADGE[c]) ? `<span class="badge ${CAT_BADGE[c]}">${c}</span>` : `<span class="badge" style="background:#E2E8F0;color:#475569">${c}</span>`;
+  
   let state = {
     planGroupId: null,
     plans: [{
@@ -31,7 +34,38 @@ const CalculatorPage = (() => {
     return Calc.mealGuests(getTotalGuests(), getCurrentPlan().meals[mealKey].mealRate);
   }
 
-
+  function getEffectiveGrams(item, mealGuestsAll, mk) {
+    const p = getCurrentPlan();
+    const useNat = p.guestConfig?.useNationalityMapping;
+    const ext = p.ext;
+    
+    if (!useNat || !ext || !item.gramsByNat || mealGuestsAll === 0) {
+      return item.gramsPerPerson || 0;
+    }
+    
+    let totalGrams = 0;
+    const mealRate = (p.meals[mk].mealRate || 100) / 100;
+    
+    for (let nat in item.gramsByNat) {
+      let natGuests = ext.totalGuests || 0;
+      if (nat === 'Indian') natGuests = ext.nat_india || 0;
+      else if (nat === 'Europe/Western' || nat === 'European') natGuests = ext.nat_europe || 0;
+      else if (nat === 'China' || nat === 'Chinese') natGuests = ext.nat_china || 0;
+      else if (nat === 'Domestic/Thai' || nat === 'Thai') natGuests = ext.nat_domestic || 0;
+      
+      const natMealGuests = Math.round(natGuests * mealRate);
+      totalGrams += (item.gramsByNat[nat] || 0) * natMealGuests;
+    }
+    
+    // Check if user manually edited gramsPerPerson and it differs from sum of gramsByNat
+    const sumByNat = Object.values(item.gramsByNat).reduce((a,b)=>a+b, 0);
+    const diff = (item.gramsPerPerson || 0) - sumByNat;
+    if (diff !== 0) {
+      totalGrams += diff * mealGuestsAll;
+    }
+    
+    return totalGrams / mealGuestsAll;
+  }
 
   function computeSummary(){
     const map = {};
@@ -43,7 +77,7 @@ const CalculatorPage = (() => {
         if(!ing) return;
         const bufRate = (item.bufferRate !== undefined) ? item.bufferRate : (ing.bufferRate || getProfile().bufferRate || 5);
         const row = Calc.itemRow({
-          gramsPerPerson: item.gramsPerPerson || 0,
+          gramsPerPerson: getEffectiveGrams(item, mg, mk),
           mealGuests: mg,
           bufferRate: bufRate,
           pricePerKg: item.pricePerKg || ing.pricePerKg,
@@ -66,6 +100,66 @@ const CalculatorPage = (() => {
     return Object.values(map);
   }
 
+  function computeGrandSummary() {
+    const map = {};
+    const MEAL_KEYS = ['breakfast','lunch','dinner'];
+    state.plans.forEach(plan => {
+      const p = plan.guestConfig || getProfile();
+      const totalGuests = plan.ext?.totalGuests || (p.useManualGuests ? (Number(p.manualGuests)||0) : Calc.totalGuests(Number(p.totalRooms)||0, Number(p.occupancyRate)||0, Number(p.guestsPerRoom)||1));
+      
+      MEAL_KEYS.forEach(mk => {
+        const mg = Calc.mealGuests(totalGuests, plan.meals[mk].mealRate);
+        plan.meals[mk].items.forEach(item => {
+          const ing = getIngredientById(item.ingredientId);
+          if(!ing) return;
+          const bufRate = (item.bufferRate !== undefined) ? item.bufferRate : (ing.bufferRate || getProfile().bufferRate || 5);
+          
+          let totalGrams = 0;
+          const ext = plan.ext;
+          if (p.useNationalityMapping && ext && item.gramsByNat && mg > 0) {
+            for (let nat in item.gramsByNat) {
+              let natGuests = ext.totalGuests || 0;
+              if (nat === 'Indian') natGuests = ext.nat_india || 0;
+              else if (nat === 'Europe/Western' || nat === 'European') natGuests = ext.nat_europe || 0;
+              else if (nat === 'China' || nat === 'Chinese') natGuests = ext.nat_china || 0;
+              else if (nat === 'Domestic/Thai' || nat === 'Thai') natGuests = ext.nat_domestic || 0;
+              const natMealGuests = Math.round(natGuests * (plan.meals[mk].mealRate / 100));
+              totalGrams += (item.gramsByNat[nat] || 0) * natMealGuests;
+            }
+            const sumByNat = Object.values(item.gramsByNat).reduce((a,b)=>a+b, 0);
+            const diff = (item.gramsPerPerson || 0) - sumByNat;
+            if (diff !== 0) totalGrams += diff * mg;
+          } else {
+            totalGrams = (item.gramsPerPerson || 0) * mg;
+          }
+          
+          const effGrams = mg > 0 ? totalGrams / mg : 0;
+          
+          const row = Calc.itemRow({
+            gramsPerPerson: effGrams,
+            mealGuests: mg,
+            bufferRate: bufRate,
+            pricePerKg: item.pricePerKg || ing.pricePerKg,
+            unit: ing.unit, unitSize: ing.unitSize || 1,
+          });
+          if(!map[ing.id]){
+            map[ing.id] = {
+              ingredientId: ing.id, code: ing.code, name: ing.name,
+              category: ing.category, unit: ing.unit, unitSize: ing.unitSize||1,
+              pricePerKg: item.pricePerKg || ing.pricePerKg,
+              recommendedKg: 0, orderKg: 0, cost: 0,
+              moq: ing.moq || 0,
+            };
+          }
+          map[ing.id].recommendedKg += row.recommendedKg;
+          map[ing.id].orderKg += row.orderKg;
+          map[ing.id].cost += row.cost;
+        });
+      });
+    });
+    return Object.values(map);
+  }
+
   function computeMealSummary(){
     const MEAL_KEYS = ['breakfast','lunch','dinner'];
     return MEAL_KEYS.map(mk => {
@@ -76,7 +170,7 @@ const CalculatorPage = (() => {
         if(!ing) return;
         const bufRate = (item.bufferRate !== undefined) ? item.bufferRate : (ing.bufferRate || getProfile().bufferRate || 5);
         const row = Calc.itemRow({
-          gramsPerPerson: item.gramsPerPerson || 0,
+          gramsPerPerson: getEffectiveGrams(item, mg, mk),
           mealGuests: mg,
           bufferRate: bufRate,
           pricePerKg: item.pricePerKg || ing.pricePerKg,
@@ -106,7 +200,7 @@ const CalculatorPage = (() => {
         if(!ing) return;
         const iBuf = (item.bufferRate !== undefined) ? item.bufferRate : (ing.bufferRate || bufRate);
         const row = Calc.itemRow({
-          gramsPerPerson: item.gramsPerPerson || 0, mealGuests: mg,
+          gramsPerPerson: getEffectiveGrams(item, mg, mk), mealGuests: mg,
           bufferRate: iBuf,
           pricePerKg: item.pricePerKg || ing.pricePerKg,
           unit: ing.unit, unitSize: ing.unitSize || 1,
@@ -140,20 +234,60 @@ const CalculatorPage = (() => {
 
     const mealContent = document.getElementById('meal-tab-content');
     if(!mealContent) return;
+
+    let menusHtml = '';
+    if(meal.addedMenus && meal.addedMenus.length > 0) {
+      const allMenus = DB.getMenus();
+      menusHtml = `<div style="margin:0 0 16px 0; padding:12px 16px; background:#F8FAFC; border-bottom:1px solid #E2E8F0;">
+        <div style="font-weight:600; font-size:13px; color:#475569; margin-bottom:10px;">เมนูที่จัดให้สำหรับมื้อนี้:</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          ${meal.addedMenus.map(mid => {
+            const m = allMenus.find(x => x.id === mid);
+            if(!m) return '';
+            const ings = m.items.map(mi => {
+              const ing = getIngredientById(mi.ingredientId);
+              return ing ? `${ing.name} ${mi.gramsPerPerson}g` : '';
+            }).filter(x=>x).join(', ');
+            return `<div style="background:white; border:1px solid #CBD5E1; border-radius:6px; padding:8px 12px; font-size:12px; display:flex; flex-direction:column; gap:4px; min-width:180px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <span style="font-weight:700; color:#1E293B; font-size:13px;">${m.name}</span>
+                <button class="btn-remove-meal-menu" data-mid="${mid}" style="background:none; border:none; color:#EF4444; font-size:16px; line-height:1; cursor:pointer; padding:0 0 0 8px; margin-top:-2px;">&times;</button>
+              </div>
+              <div style="color:#64748B; font-size:11px; line-height:1.4;">${ings}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }
+
+    let demographicsHtml = '';
+    const ext = getCurrentPlan().ext;
+    if (ext && ext.mealCounts && ext.mealCounts[mk] && ext.mealCounts[mk].total > 0) {
+      const mc = ext.mealCounts[mk];
+      const nats = Object.entries(mc.nat).map(([n, c]) => `${n} ${c}`).join(', ');
+      demographicsHtml = `<div style="font-size:11px; color:#0369A1; background:#E0F2FE; padding:4px 10px; border-radius:12px; display:inline-block; margin-left:12px; font-weight:500;">
+        ผู้ใหญ่ ${mc.adults} | เด็ก ${mc.children} &nbsp;&middot;&nbsp; สัญชาติ: ${nats || '-'}
+      </div>`;
+    }
+
     mealContent.innerHTML = `
       <div class="card" style="margin-bottom:16px">
-        <div class="card-header">
-          <h3>${MEAL_LABELS[mk]}</h3>
+        <div class="card-header" style="flex-wrap:wrap; gap:10px;">
+          <div style="display:flex; align-items:center; flex-wrap:wrap;">
+            <h3 style="margin:0">${MEAL_LABELS[mk]}</h3>
+            ${demographicsHtml}
+          </div>
           <div style="display:flex;align-items:center;gap:10px">
             <label style="font-size:12px;color:#64748B">% ที่ทาน:</label>
             <input type="number" id="meal-rate-inp" min="0" max="100" value="${meal.mealRate}" style="width:60px" />
             <span style="font-size:12px;color:#64748B">= <strong>${mg}</strong> คน</span>
           </div>
         </div>
+        ${menusHtml}
         <div class="table-wrap">
           <table>
             <thead><tr>
-              <th>วัตถุดิบ</th><th class="c">หมวด</th>
+              <th>วัตถุดิบ (รวมจากทุกเมนู)</th><th class="c">หมวด</th>
               <th class="c">กรัม/คน</th><th class="r">ต้องใช้ (กก.)</th>
               <th class="r">สั่งจริง</th><th class="c">Buffer%</th>
               <th class="r">ราคา/กก.</th><th class="r">รวม (฿)</th><th></th>
@@ -212,6 +346,11 @@ const CalculatorPage = (() => {
         renderMealTab(); renderDashboard();
       });
     });
+    mealContent.querySelectorAll('.btn-remove-meal-menu').forEach(btn => {
+      btn.addEventListener('click', () => {
+        removeMenuData(btn.dataset.mid, mk);
+      });
+    });
     UI.makeSearch('meal-search-wrap', item => {
       if(getCurrentPlan().meals[mk].items.find(i => i.ingredientId === item.id)){
         UI.toast('มีสินค้านี้แล้ว', 'error'); return;
@@ -237,16 +376,20 @@ const CalculatorPage = (() => {
         getCurrentPlan().meals[mk].addedMenus.push(menuId);
       }
 
+      const nat = menu.nationality || 'All';
       menu.items.forEach(mi => {
         const existing = getCurrentPlan().meals[mk].items.find(i => i.ingredientId === mi.ingredientId);
         if(existing) {
           existing.gramsPerPerson += mi.gramsPerPerson || 0;
+          if(!existing.gramsByNat) existing.gramsByNat = {};
+          existing.gramsByNat[nat] = (existing.gramsByNat[nat] || 0) + (mi.gramsPerPerson || 0);
         } else {
           const ing = getIngredientById(mi.ingredientId);
           if(ing) {
             getCurrentPlan().meals[mk].items.push({
               ingredientId: mi.ingredientId,
               gramsPerPerson: mi.gramsPerPerson || 0,
+              gramsByNat: { [nat]: mi.gramsPerPerson || 0 },
               pricePerKg: ing.pricePerKg,
               bufferRate: ing.bufferRate,
             });
@@ -270,10 +413,14 @@ const CalculatorPage = (() => {
       if(idx > -1) {
         meal.addedMenus.splice(idx, 1);
         
+        const nat = menu.nationality || 'All';
         menu.items.forEach(mi => {
           const existing = meal.items.find(i => i.ingredientId === mi.ingredientId);
           if (existing) {
             existing.gramsPerPerson -= (mi.gramsPerPerson || 0);
+            if(existing.gramsByNat && existing.gramsByNat[nat] !== undefined) {
+               existing.gramsByNat[nat] = Math.max(0, existing.gramsByNat[nat] - (mi.gramsPerPerson || 0));
+            }
           }
         });
         
@@ -437,6 +584,7 @@ const CalculatorPage = (() => {
               <label style="font-size:12px;color:#64748B">จำนวนวัน:</label>
               <input type="number" id="days-inp" min="1" value="${days}" style="width:60px" />
             </div>
+            ${state.plans.length > 1 ? `<button id="btn-ai-plan-all" class="btn-primary" style="background:#8B5CF6; border:none; padding:4px 12px; font-size:12px; height:28px; border-radius:14px; box-shadow:0 2px 4px rgba(139,92,246,0.3)">✨ AI จัดแผนทั้งหมด ${state.plans.length} วัน</button>` : `<button id="btn-ai-plan-all" class="btn-primary" style="background:#8B5CF6; border:none; padding:4px 12px; font-size:12px; height:28px; border-radius:14px; box-shadow:0 2px 4px rgba(139,92,246,0.3)">✨ AI จัดแผนอัตโนมัติ</button>`}
           </div>
         </div>
         <div class="card-body">
@@ -502,6 +650,110 @@ const CalculatorPage = (() => {
       isDirty = true;
       renderDashboard();
     });
+    
+    document.getElementById('btn-ai-plan-all')?.addEventListener('click', () => {
+      const btn = document.getElementById('btn-ai-plan-all');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = 'กำลังประมวลผล...';
+      btn.disabled = true;
+
+      if(typeof AI !== 'undefined' && AI.recommendAllPlans) {
+        AI.recommendAllPlans(state.plans, DB.getMenus(), (result) => {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          
+          if(result && result.recommendations) {
+            const originalIdx = state.currentDateIdx;
+            
+            result.recommendations.forEach(rec => {
+              const idx = state.plans.findIndex(p => p.plan_date === rec.plan_date);
+              if(idx > -1) {
+                state.currentDateIdx = idx;
+                const plan = state.plans[idx];
+                
+                ['breakfast', 'lunch', 'dinner'].forEach(mk => {
+                  if(rec[mk] && Array.isArray(rec[mk])) {
+                    plan.meals[mk].items = [];
+                    plan.meals[mk].addedMenus = [];
+                    
+                    rec[mk].forEach(menuId => {
+                      importMenuData(menuId, mk, true);
+                    });
+                  }
+                });
+              }
+            });
+            
+            state.currentDateIdx = originalIdx;
+            forceRenderTabs();
+            UI.toast('AI จัดแผนทั้งหมดเรียบร้อยแล้ว!', 'success');
+            
+            if(result.reasoning) {
+              let menusHtml = '';
+              const allMenus = DB.getMenus();
+              result.recommendations.forEach(rec => {
+                menusHtml += `<div style="margin-top:12px; font-weight:600; color:#1E293B;">วันที่ ${rec.plan_date}</div>`;
+                const mkLabels = { breakfast: 'เช้า', lunch: 'กลางวัน', dinner: 'เย็น' };
+                ['breakfast', 'lunch', 'dinner'].forEach(mk => {
+                  if(rec[mk] && rec[mk].length > 0) {
+                    const menuNames = rec[mk].map(id => {
+                      const m = allMenus.find(x => x.id === id);
+                      return m ? m.name : id;
+                    }).join(', ');
+                    menusHtml += `<div style="font-size:13px; color:#475569; margin-left:8px; margin-top:4px;">- มื้อ${mkLabels[mk]}: <span style="color:#3B82F6">${menuNames}</span></div>`;
+                  }
+                });
+              });
+
+              const formattedReasoning = result.reasoning.replace(/\\n/g, '<br>').replace(/\\* /g, '&bull; ');
+              const modalHtml = `
+                <div style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
+                  <div style="background:white; border-radius:12px; padding:24px; max-width:600px; width:100%; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+                    <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;"><span style="font-size:24px">✨</span> คำแนะนำจาก AI</h3>
+                    <div style="font-size:14px; color:#334155; line-height:1.8; margin-bottom:20px; background:#F8FAFC; padding:20px; border-radius:8px; border-left:4px solid #8B5CF6; max-height: 400px; overflow-y: auto;">
+                      ${formattedReasoning}
+                      <hr style="border:none; border-top:1px dashed #CBD5E1; margin:16px 0;" />
+                      <div style="font-weight:700; color:#1E293B; margin-bottom:8px;">เมนูที่จัดให้:</div>
+                      ${menusHtml}
+                    </div>
+                    <div style="display:flex; justify-content:flex-end;">
+                      <button id="btn-close-ai-modal" class="btn-primary">ตกลง</button>
+                    </div>
+                  </div>
+                </div>
+              `;
+              const modalWrapper = document.createElement('div');
+              modalWrapper.innerHTML = modalHtml;
+              document.body.appendChild(modalWrapper);
+              document.getElementById('btn-close-ai-modal').addEventListener('click', () => {
+                document.body.removeChild(modalWrapper);
+              });
+            }
+          }
+        });
+      } else {
+        UI.toast('ไม่พบโมดูล AI', 'error');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+      }
+    });
+    document.getElementById('calc-use-manual')?.addEventListener('change', e => {
+      const p = getCurrentPlan();
+      if(!p.guestConfig) p.guestConfig = Object.assign({}, getProfile());
+      p.guestConfig.useManualGuests = e.target.checked;
+      isDirty = true;
+      renderDashboard();
+      renderMealTab();
+    });
+    
+    document.getElementById('calc-use-nat')?.addEventListener('change', e => {
+      const p = getCurrentPlan();
+      if(!p.guestConfig) p.guestConfig = Object.assign({}, getProfile());
+      p.guestConfig.useNationalityMapping = e.target.checked;
+      isDirty = true;
+      renderDashboard();
+      renderMealTab();
+    });
     document.getElementById('plan-date-inp')?.addEventListener('change', e => {
       getCurrentPlan().plan_date = e.target.value || new Date().toISOString().slice(0,10);
       isDirty = true;
@@ -509,6 +761,81 @@ const CalculatorPage = (() => {
     document.getElementById('btn-save-plan')?.addEventListener('click', () => savePlan('confirmed'));
     document.getElementById('btn-print')?.addEventListener('click', () => window.print());
     document.getElementById('btn-quote')?.addEventListener('click', () => UI.toast('ฟีเจอร์ใบเสนอราคากำลังพัฒนา'));
+  }
+
+  function renderGrandSummary() {
+    const el = document.getElementById('dashboard-section');
+    if(!el) return;
+
+    const mealContent = document.getElementById('meal-tab-content');
+    if(mealContent) mealContent.innerHTML = '';
+
+    const summaryItems = computeGrandSummary();
+    const daysText = state.plans.length + ' วัน';
+    
+    summaryItems.sort((a,b) => {
+      if(a.category !== b.category) return a.category.localeCompare(b.category);
+      return a.name.localeCompare(b.name);
+    });
+
+    let grandTotal = 0;
+    const orderRows = summaryItems.map(item => {
+      const netKg = item.recommendedKg;
+      const ord = Calc.orderQty(netKg, item.unit, item.unitSize);
+      const netCost = Calc.cost(ord, item.pricePerKg, item.unit, item.unitSize);
+      grandTotal += netCost;
+      
+      return `<tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="width:8px;height:8px;border-radius:50%;background:${catColor(item.category)};flex-shrink:0;display:inline-block"></span>
+            <div><div class="td-name">${item.name}</div><div class="td-code">${item.code}</div></div>
+          </div>
+        </td>
+        <td class="c">${catBadgeHtml(item.category)}</td>
+        <td class="r">${netKg.toFixed(2)}</td>
+        <td class="r"><strong>${ord.display}</strong></td>
+        <td class="r">฿${UI.fmtMoney(item.pricePerKg)}/${item.unit==='pack'?'แพ็ค':'กก.'}</td>
+        <td class="r" style="color:#F97316;font-weight:700">฿${UI.fmtMoney(netCost)}</td>
+      </tr>`;
+    }).join('');
+
+    const emptyRow = `<tr><td colspan="6" style="text-align:center;padding:32px;color:#94A3B8">ยังไม่มีรายการ</td></tr>`;
+
+    el.innerHTML = `
+      <div class="card" style="margin-top:16px; border:2px solid #8B5CF6">
+        <div class="card-header" style="background:#F5F3FF; border-bottom:1px solid #EDE9FE">
+          <h3 style="color:#5B21B6">✨ ยอดสั่งจริง (สรุปรวม ${daysText})</h3>
+          <div style="font-size:18px;font-weight:700;color:#F97316">รวมทั้งสิ้น ฿${UI.fmtMoney(grandTotal)}</div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>สินค้า</th><th class="c">หมวด</th>
+              <th class="r">ต้องใช้ (กก.)</th><th class="r">สั่งรวม</th>
+              <th class="r">ราคา/หน่วย</th><th class="r">รวมสุทธิ</th>
+            </tr></thead>
+            <tbody>${summaryItems.length ? orderRows : emptyRow}</tbody>
+            ${summaryItems.length ? `<tfoot><tr>
+              <td colspan="5" style="text-align:right">ยอดรวมทั้งสิ้น</td>
+              <td style="color:#FDBA74">฿${UI.fmtMoney(grandTotal)}</td>
+            </tr></tfoot>` : ''}
+          </table>
+        </div>
+        <div style="display:flex;gap:10px;padding:16px 20px;border-top:1px solid #F1F5F9;flex-wrap:wrap">
+          <button id="btn-save-plan" class="btn-primary" style="background:#8B5CF6; border-color:#8B5CF6">บันทึกแผนทั้งหมด</button>
+          <button id="btn-quote" class="btn-secondary">ขอใบเสนอราคา</button>
+          <button id="btn-print" class="btn-secondary">พิมพ์ / บันทึก PDF</button>
+        </div>
+        <div style="font-size:11px;color:#94A3B8;padding:0 20px 14px">
+          ยอดรวมคำนวณจากการนำ "ต้องใช้ (กก.)" ของทุกวันมารวมกัน แล้วปัดขึ้นตามขนาดบรรจุเพียงครั้งเดียว เพื่อให้ได้ยอดสั่งซื้อที่มีประสิทธิภาพสูงสุด
+        </div>
+      </div>
+    `;
+
+    document.getElementById('btn-save-plan')?.addEventListener('click', () => savePlan('confirmed'));
+    document.getElementById('btn-quote')?.addEventListener('click', () => UI.toast('ฟังก์ชันขอใบเสนอราคาเตรียมเปิดให้บริการเร็วๆ นี้', 'info'));
+    document.getElementById('btn-print')?.addEventListener('click', () => window.print());
   }
 
   function savePlan(status, silent = false) {
@@ -595,9 +922,13 @@ const CalculatorPage = (() => {
             ${new Date(pl.plan_date).toLocaleDateString('th-TH', {day:'numeric', month:'short'})}
           </button>
         `).join('')}
+        <button class="btn-date-tab ${state.currentDateIdx === 'summary' ? 'active' : ''}" data-idx="summary" style="padding:8px 16px; border-radius:8px; border:1px solid #E2E8F0; background:${state.currentDateIdx === 'summary' ? '#8B5CF6' : '#F3F4F6'}; color:${state.currentDateIdx === 'summary' ? '#FFF' : '#64748B'}; cursor:pointer; font-weight:600; white-space:nowrap; transition:all 0.2s;">
+          ✨ สรุปรวมทุกวัน
+        </button>
       </div>` : ''}
 
       <!-- File Upload / Dropzone -->
+      ${state.currentDateIdx === 'summary' ? '' : `
       <div class="card" style="margin-bottom:20px; background:#F8FAFC; border:2px dashed #CBD5E1; text-align:center; transition:all 0.2s" id="pms-dropzone">
         <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
         <div class="card-body" style="padding:40px 20px">
@@ -609,15 +940,21 @@ const CalculatorPage = (() => {
         </div>
       </div>
       <div id="pms-result-container" style="display:none; margin-bottom:20px"></div>
+      `}
 
       <!-- Guest Configuration -->
+      ${state.currentDateIdx === 'summary' ? '' : `
       <div class="card" style="margin-bottom:20px">
         <div class="card-header"><h3>ข้อมูลผู้เข้าพักและการเผื่อขาด</h3></div>
         <div class="card-body">
-          <div style="margin-bottom:12px">
+          <div style="margin-bottom:12px; display:flex; flex-direction:column; gap:8px;">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
               <input type="checkbox" id="calc-use-manual" ${p.useManualGuests?'checked':''} style="width:16px;height:16px;accent-color:#F97316" />
               กำหนดจำนวนแขกเอง (ไม่คำนวณจากห้อง)
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="calc-use-nat" ${p.useNationalityMapping?'checked':''} style="width:16px;height:16px;accent-color:#10B981" />
+              คำนวณปริมาณวัตถุดิบแยกตามสัญชาติของเมนูอาหาร (ดึงข้อมูลสัญชาติจากไฟล์ PMS)
             </label>
           </div>
           <div id="calc-room-fields" class="grid-4" style="${p.useManualGuests?'display:none;':''}margin-bottom:16px">
@@ -653,8 +990,10 @@ const CalculatorPage = (() => {
           </div>
         </div>
       </div>
+      `}
 
       <!-- Meal Tabs -->
+      ${state.currentDateIdx === 'summary' ? '' : `
       <div class="card" style="margin-bottom:20px">
         <div class="card-body">
           <div class="tab-bar">
@@ -665,6 +1004,7 @@ const CalculatorPage = (() => {
           <div id="meal-tab-content"></div>
         </div>
       </div>
+      `}
 
       <!-- Dashboard -->
       <div id="dashboard-section"></div>
@@ -843,17 +1183,17 @@ const CalculatorPage = (() => {
       reader.readAsArrayBuffer(file);
     }
 
-    dropzone.addEventListener('dragover', e => {
+    dropzone?.addEventListener('dragover', e => {
       e.preventDefault();
       dropzone.style.background = '#F1F5F9';
       dropzone.style.borderColor = '#94A3B8';
     });
-    dropzone.addEventListener('dragleave', e => {
+    dropzone?.addEventListener('dragleave', e => {
       e.preventDefault();
       dropzone.style.background = '#F8FAFC';
       dropzone.style.borderColor = '#CBD5E1';
     });
-    dropzone.addEventListener('drop', e => {
+    dropzone?.addEventListener('drop', e => {
       e.preventDefault();
       dropzone.style.background = '#F8FAFC';
       dropzone.style.borderColor = '#CBD5E1';
@@ -862,7 +1202,7 @@ const CalculatorPage = (() => {
       }
     });
     // delegation for the dynamic input
-    dropzone.addEventListener('change', e => {
+    dropzone?.addEventListener('change', e => {
       if(e.target && e.target.id === 'pms-file-input' && e.target.files.length) {
         handleFile(e.target.files[0]);
       }
@@ -888,14 +1228,14 @@ const CalculatorPage = (() => {
       renderDashboard();
     }
 
-    document.getElementById('calc-use-manual').addEventListener('change', e => {
+    document.getElementById('calc-use-manual')?.addEventListener('change', e => {
       document.getElementById('calc-room-fields').style.display = e.target.checked ? 'none' : '';
       document.getElementById('calc-manual-fields').style.display = e.target.checked ? '' : 'none';
       saveAndRefresh();
     });
 
     ['calc-total-rooms','calc-occ-rate','calc-guests-room','calc-buf-rate','calc-manual-guests','calc-manual-buf'].forEach(id => {
-      document.getElementById(id).addEventListener('change', saveAndRefresh);
+      document.getElementById(id)?.addEventListener('change', saveAndRefresh);
     });
 
     container.querySelectorAll('.tab-btn[data-meal]').forEach(btn => {
@@ -908,15 +1248,20 @@ const CalculatorPage = (() => {
 
     container.querySelectorAll('.btn-date-tab').forEach(btn => {
       btn.addEventListener('click', () => {
-        state.currentDateIdx = parseInt(btn.dataset.idx, 10);
+        const idx = btn.dataset.idx;
+        state.currentDateIdx = idx === 'summary' ? 'summary' : parseInt(idx, 10);
         render(container);
       });
     });
 
-    renderMealTab();
-    renderDashboard();
+    if (state.currentDateIdx === 'summary') {
+      renderGrandSummary();
+    } else {
+      renderMealTab();
+      renderDashboard();
+    }
 
-    if (getCurrentPlan().ext) {
+    if (state.currentDateIdx !== 'summary' && getCurrentPlan().ext) {
       showExtResult();
     }
   }

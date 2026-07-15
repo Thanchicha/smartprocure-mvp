@@ -11,7 +11,8 @@ const CREDENTIALS = [
 
 const Auth = {
   login(username, password){
-    const u = CREDENTIALS.find(c => c.username===username.trim() && c.password===password);
+    const allCreds = [...CREDENTIALS, ...(window.MOCK_CREDENTIALS || [])];
+    const u = allCreds.find(c => c.username===username.trim() && c.password===password);
     if(u){
       const session = {username:u.username, name:u.name, role:u.role, loginAt:Date.now()};
       localStorage.setItem(AUTH_KEY, JSON.stringify(session));

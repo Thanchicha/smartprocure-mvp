@@ -34,6 +34,20 @@ const OrderHistoryPage = (() => {
         render(container);
       });
     });
+    container.querySelectorAll('.order-submit').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        if(!UI.confirm('ยืนยันส่งคำสั่งซื้อนี้ให้ซัพพลายเออร์?')) return;
+        const id = btn.dataset.id;
+        const orders = DB.getOrders();
+        const order = orders.find(o => o.id === id);
+        if(order) {
+          order.status = 'submitted';
+          DB.saveOrder(order);
+          UI.toast('ส่งคำสั่งซื้อเรียบร้อยแล้ว!', 'success');
+          render(container);
+        }
+      });
+    });
     container.querySelectorAll('.order-print').forEach(btn=>{
       btn.addEventListener('click',()=>window.print());
     });
@@ -59,8 +73,7 @@ const OrderHistoryPage = (() => {
         </tr>`).join('');
 
       // Donut chart (SVG)
-      const _c = { 'ชิ้นส่วนวัว':'#EF4444', 'วัว/แปรรูป':'#B91C1C', 'ชิ้นส่วนหมู':'#EC4899', 'หมูแปรรูป':'#BE185D', 'ไก่/แปรรูป':'#EAB308', 'ปลา':'#06B6D4', 'กุ้ง':'#DC2626', 'หมึก':'#8B5CF6', 'หอย':'#F97316', 'ปู':'#F43F5E' };
-      const catColor = c => _c[c] || '#94A3B8';
+      const catColor = c => (typeof CAT_COLOR !== 'undefined' && CAT_COLOR[c]) ? CAT_COLOR[c] : '#94A3B8';
       const catMap = {};
       net.forEach(item => { catMap[item.category] = (catMap[item.category]||0) + (item.netKg||0); });
       const catEntries = Object.entries(catMap).filter(([,v])=>v>0);
@@ -136,14 +149,15 @@ const OrderHistoryPage = (() => {
                 <span class="badge ${st.cls}">${st.label}</span>
               </div>
               <div style="font-size:12px;color:#64748B;margin-top:2px">
-                ${order.confirmed_at?new Date(order.confirmed_at).toLocaleDateString('th-TH'):''} &nbsp;·&nbsp; ${net.length} รายการ
+                ${order.confirmed_at?new Date(order.confirmed_at).toLocaleDateString('th-TH'):'วันที่ทำรายการ: -'} &nbsp;·&nbsp; วันที่รับของ: ${order.target_dates && order.target_dates.length ? order.target_dates.join(', ') : 'ไม่ระบุ'} &nbsp;·&nbsp; ${net.length} รายการ
               </div>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <div style="text-align:right">
-              <div style="font-weight:700;color:#F97316;font-size:14px">฿${UI.fmtMoney(total)}</div>
+              <div style="font-weight:700;color:#F97316;font-size:14px;margin-right:8px">฿${UI.fmtMoney(total)}</div>
             </div>
+            ${order.status === 'confirmed' ? `<button class="btn-primary sm order-submit" data-id="${order.id}" style="background:#10B981;border-color:#10B981;padding:6px 12px;font-size:13px">ส่งซัพพลายเออร์</button>` : ''}
             <button class="btn-secondary sm order-toggle" data-id="${order.id}">${isOpen?'ซ่อน':'ดู'}</button>
             <button class="btn-secondary sm order-print" data-id="${order.id}" title="พิมพ์">พิมพ์</button>
             <button class="btn-danger order-delete" data-id="${order.id}" title="ลบ" style="font-size:13px;padding:6px 10px">ลบ</button>

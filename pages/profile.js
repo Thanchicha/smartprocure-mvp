@@ -73,7 +73,7 @@ const ProfilePage = (() => {
           <p style="font-size:13px; color:#64748B; margin-bottom:12px">รหัส API Key จาก Google AI Studio สำหรับใช้งานฟีเจอร์ "AI แนะนำเมนู"</p>
           <div class="form-group" style="max-width:400px">
             <label>Gemini API Key</label>
-            <input type="password" id="p-gemini-key" value="${p.geminiApiKey||''}" placeholder="AIzaSy..." />
+            <input type="password" id="p-gemini-key" value="${p.geminiApiKey||'AQ.Ab8RN6JCkvZ3Y5K6lssRMn-pcmYLvVF0BV3g7Yawk1rvZYa83Q'}" placeholder="AIzaSy..." />
           </div>
           <button id="p-save-btn" class="btn-primary" style="margin-top:20px">บันทึกข้อมูลทั้งหมด</button>
           <span id="p-saved-msg" style="font-size:13px;color:#16A34A;margin-left:12px;display:none">บันทึกแล้ว</span>

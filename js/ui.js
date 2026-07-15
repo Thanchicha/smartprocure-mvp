@@ -71,4 +71,23 @@ const UI = {
   },
 
   fmtMoney(n){ return (n||0).toLocaleString(); },
+  
+  modal(title, contentHtml) {
+    const el = document.createElement('div');
+    el.className = 'modal-backdrop sp-modal-container';
+    el.innerHTML = `
+      <div class="modal">
+        <div class="modal-header">
+          <h3 style="margin:0;font-size:16px;color:#1E293B">${title}</h3>
+          <button class="modal-close" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94A3B8">&times;</button>
+        </div>
+        <div class="modal-body">
+          ${contentHtml}
+        </div>
+      </div>
+    `;
+    document.body.appendChild(el);
+    el.querySelector('.modal-close').addEventListener('click', () => el.remove());
+    el.addEventListener('click', e => { if(e.target===el) el.remove(); });
+  }
 };
