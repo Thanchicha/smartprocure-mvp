@@ -264,6 +264,64 @@ const DailyPlansPage = (() => {
         UI.toast('แยกวันมาแก้ไขเรียบร้อย (บันทึกจะเป็นแผนชุดใหม่)');
       });
     });
+
+    container.querySelectorAll('.btn-submit-daily').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const allPlansRaw = DB.getPlans();
+        let group = allPlansRaw.find(p => p.id === btn.dataset.groupId);
+        if(!group) return;
+        if (!group.plans) group = { id: group.id, plans: [group] };
+        
+        const plan = group.plans.find(d => d.plan_date === btn.dataset.date);
+        if (!plan) return;
+
+        const ok = await UI.confirm('ยืนยันส่งออเดอร์', `ส่งออเดอร์วันที่ ${plan.plan_date} ให้ซัพพลายเออร์ใช่หรือไม่?`, {okText: 'ส่งออเดอร์', okColor: '#8B5CF6'});
+        if(!ok) return;
+
+        // Map items
+        const netItems = (plan.summary_items || []).map(item => {
+          return {
+            ...item,
+            leftover: 0,
+            netKg: item.orderKg || 0,
+            netCost: item.cost || 0,
+            moqStatus: Calc.moqStatus(item.orderKg || 0, item.moq || 0)
+          };
+        });
+
+        const order = {
+          order_name: `ออเดอร์วันที่ ${plan.plan_date}`,
+          target_dates: [plan.plan_date],
+          aggregated_items: plan.summary_items || [],
+          leftover_stocks: {},
+          net_order_items: netItems,
+          total_recommended_cost: plan.total_cost,
+          total_net_cost: plan.total_cost,
+          status: 'submitted',
+          confirmed_at: new Date().toISOString(),
+        };
+
+        DB.saveOrder(order);
+        
+        // Mark plan as submitted
+        plan.order_status = 'submitted';
+        
+        // Save plan back to DB
+        if (group.plans.length === 1 && group.id === plan.id) {
+          DB.savePlan(plan);
+        } else {
+          // It's inside a group
+          const idx = allPlansRaw.findIndex(p => p.id === group.id);
+          if(idx > -1) {
+            allPlansRaw[idx] = group;
+            localStorage.setItem('sp_daily_plans_' + (Auth.getSession()?.username || 'default'), JSON.stringify(allPlansRaw));
+          }
+        }
+        
+        UI.toast('ส่งออเดอร์ให้ซัพพลายเออร์เรียบร้อยแล้ว!', 'success');
+        render(container);
+      });
+    });
   }
 
   function renderPlanCard(group){
@@ -282,13 +340,19 @@ const DailyPlansPage = (() => {
           <div class="info-item"><div class="lbl">แขกรวมทั้งหมด</div><div class="val">${group.total_guests||'-'} คน</div></div>
         </div>`;
       
-      const dayCards = (group.plans || []).map(d => `
-        <div style="background:#FFF;border:1px solid #E2E8F0;border-radius:8px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+      const dayCards = (group.plans||[]).map(d => `
+        <div style="background:#FFF;border:1px solid #E2E8F0;border-radius:8px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
           <div>
-            <strong style="color:#1E293B">วันที่ ${d.plan_date}</strong>
-            <div style="font-size:12px;color:#64748B">ยอดสั่งซื้อ: ฿${UI.fmtMoney(d.total_cost || 0)}</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <strong style="color:#1E293B">วันที่ ${d.plan_date}</strong>
+              ${d.order_status === 'submitted' ? '<span class="badge" style="background:#DBEAFE;color:#1D4ED8;padding:2px 8px;font-size:11px;">ส่งออเดอร์แล้ว</span>' : ''}
+            </div>
+            <div style="font-size:12px;color:#64748B;margin-top:2px">ยอดสั่งซื้อ: ฿${UI.fmtMoney(d.total_cost || 0)}</div>
           </div>
-          <button class="btn-secondary sm btn-edit-single-day" data-group-id="${group.id}" data-date="${d.plan_date}" style="font-size:12px">แก้ไขแยกวัน</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn-secondary sm btn-edit-single-day" data-group-id="${group.id}" data-date="${d.plan_date}" style="font-size:12px">แก้ไข</button>
+            ${d.order_status !== 'submitted' ? `<button class="btn-primary sm btn-submit-daily" data-group-id="${group.id}" data-date="${d.plan_date}" style="font-size:12px;background:#8B5CF6;border:none">ส่งออเดอร์</button>` : ''}
+          </div>
         </div>
       `).join('');
 

@@ -62,8 +62,41 @@ const UI = {
     return text.slice(0,idx)+`<span class="hl">${text.slice(idx,idx+q.length)}</span>`+text.slice(idx+q.length);
   },
 
-  // Generic confirm
-  confirm(msg){ return window.confirm(msg); },
+  // Modal confirm using Promise
+  confirm(title, msg, options = {}) {
+    return new Promise((resolve) => {
+      const el = document.createElement('div');
+      el.className = 'modal-backdrop sp-modal-container';
+      
+      const okText = options.okText || 'ยืนยัน';
+      const okColor = options.okColor || '#3B82F6';
+      
+      el.innerHTML = `
+        <div class="modal" style="max-width: 400px;">
+          <div class="modal-header" style="border-bottom:none; padding-bottom:8px;">
+            <h3 style="margin:0;font-size:18px;color:#1E293B">${title}</h3>
+          </div>
+          <div class="modal-body" style="padding-top:0;">
+            <p style="color:#64748B; font-size:14px; margin-bottom: 24px; line-height: 1.5; white-space: pre-wrap;">${msg}</p>
+            <div style="display:flex; justify-content:flex-end; gap:12px;">
+              <button class="btn-cancel" style="padding:10px 16px; border:1px solid #E2E8F0; background:#fff; color:#64748B; border-radius:8px; font-weight:600; cursor:pointer;">ยกเลิก</button>
+              <button class="btn-ok" style="padding:10px 16px; border:none; background:${okColor}; color:#fff; border-radius:8px; font-weight:600; cursor:pointer;">${okText}</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(el);
+      
+      const close = (result) => {
+        el.remove();
+        resolve(result);
+      };
+      
+      el.querySelector('.btn-cancel').addEventListener('click', () => close(false));
+      el.querySelector('.btn-ok').addEventListener('click', () => close(true));
+      el.addEventListener('click', e => { if(e.target===el) close(false); });
+    });
+  },
 
   fmtDate(ts){
     if(!ts) return '-';

@@ -11,6 +11,8 @@ const PAGES = {
   'profile': ProfilePage,
   'admin-orders': AdminOrdersPage,
   'admin-dashboard': AdminDashboardPage,
+  'admin-inventory': AdminInventoryPage,
+  'admin-delivered': AdminDeliveredPage,
 };
 
 let currentPage = 'calculator';
@@ -68,8 +70,8 @@ function initApp() {
   const mobNav = document.getElementById('mobile-nav');
   if(mobBtn && mobNav) {
     // build mobile nav
-    const custNav = {'daily-plans':'แผนรายวัน','batch-order':'Batch Order',menus:'เมนูอาหาร','order-history':'ประวัติสั่งซื้อ',profile:'โปรไฟล์'};
-    const adminNav = {'admin-orders':'ออเดอร์ทั้งหมด','admin-dashboard':'สรุปวัตถุดิบ'};
+    const custNav = {'daily-plans':'แผนรายวัน','batch-order':'สร้างคำสั่งซื้อ (Batch)',menus:'เมนูอาหาร','order-history':'ประวัติสั่งซื้อ',profile:'โปรไฟล์'};
+    const adminNav = {'admin-orders':'ออเดอร์ทั้งหมด','admin-dashboard':'สรุปวัตถุดิบ','admin-inventory':'📦 คลังสินค้า','admin-delivered':'🚚 ประวัติส่งสินค้า'};
     const navItems = isAdmin ? adminNav : custNav;
     mobNav.innerHTML = Object.entries(navItems).map(([k,v])=>`<a href="#" class="nav-link" data-page="${k}">${v}</a>`).join('');
     mobNav.querySelectorAll('.nav-link').forEach(a => {

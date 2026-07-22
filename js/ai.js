@@ -2,10 +2,10 @@
 
 const AI = (() => {
   async function recommendMenus(plan, targetMeal, availableMenus, onComplete) {
-    // ผู้ใช้รีเควสให้ฝัง API Key ลงในโค้ดตรงๆ ได้เลย ไม่ต้องอ่านจาก .env หรือหน้าโปรไฟล์
-    const apiKey = 'AQ.Ab8RN6KR0wW8RrFC7ym4d-dapvuGpOL9uggoqTUVPZizZiV-Vw';
-    if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
-      UI.toast('กรุณาระบุ Gemini API Key ในไฟล์ js/ai.js', 'error');
+    const profile = DB.getProfile();
+    const apiKey = (profile.geminiApiKey || '').trim();
+    if (!apiKey) {
+      UI.toast('กรุณาบันทึก Gemini API Key ในหน้าโปรไฟล์ก่อนนะครับ', 'error');
       onComplete(null);
       return;
     }
@@ -81,9 +81,10 @@ const AI = (() => {
   }
 
   async function recommendAllPlans(plans, availableMenus, onComplete) {
-    const apiKey = 'AQ.Ab8RN6KR0wW8RrFC7ym4d-dapvuGpOL9uggoqTUVPZizZiV-Vw';
+    const profile = DB.getProfile();
+    const apiKey = (profile.geminiApiKey || '').trim();
     if (!apiKey) {
-      UI.toast('กรุณาระบุ Gemini API Key', 'error');
+      UI.toast('กรุณาบันทึก Gemini API Key ในหน้าโปรไฟล์ก่อนนะครับ', 'error');
       onComplete(null);
       return;
     }

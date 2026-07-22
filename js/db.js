@@ -85,6 +85,21 @@ const DB = {
     }
     return all.sort((a,b) => b.created_date - a.created_date);
   },
+  saveOrderForTenant(order, tenant){
+    const key = `${DB_KEYS.batchOrders}_${tenant}`;
+    try {
+      const orders = JSON.parse(localStorage.getItem(key)||'[]');
+      const idx = orders.findIndex(o => o.id === order.id);
+      const clean = {...order};
+      delete clean._tenant; // don't persist the runtime property
+      if (idx > -1) {
+        orders[idx] = {...orders[idx], ...clean, updated_date: Date.now()};
+      } else {
+        orders.unshift({...clean, updated_date: Date.now()});
+      }
+      localStorage.setItem(key, JSON.stringify(orders));
+    } catch(e) { console.error('saveOrderForTenant error', e); }
+  },
 
   getMenus(){
     const u = Auth.getSession()?.username || 'default';

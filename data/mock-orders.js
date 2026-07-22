@@ -121,5 +121,31 @@
     localStorage.setItem('sp_mock_initialized_v9', 'true');
     console.log("Mock data for 15 hotels initialized.");
   }
-  
+
+  // Migration: mark orders with target_dates in Jul 20-22 as delivered
+  if (!localStorage.getItem('sp_mock_migration_delivered_jul2022')) {
+    const deliveredDates = ['2026-07-20','2026-07-21','2026-07-22'];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('sp_batch_orders_')) {
+        try {
+          const orders = JSON.parse(localStorage.getItem(k) || '[]');
+          let changed = false;
+          orders.forEach(o => {
+            if (!o.target_dates) return;
+            const hasDate = o.target_dates.some(d => deliveredDates.includes(d));
+            if (hasDate && o.status !== 'delivered') {
+              o.status = 'delivered';
+              o.ordered_at = Date.now() - 1000 * 60 * 60 * 6; // 6 hours ago
+              o.delivered_at = Date.now() - 1000 * 60 * 30; // 30 min ago
+              changed = true;
+            }
+          });
+          if (changed) localStorage.setItem(k, JSON.stringify(orders));
+        } catch(e) {}
+      }
+    }
+    localStorage.setItem('sp_mock_migration_delivered_jul2022', 'true');
+    console.log("Migration: marked Jul 20-22 orders as delivered.");
+  }
 })();

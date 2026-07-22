@@ -57,8 +57,14 @@ const OrderHistoryPage = (() => {
     const isOpen = expandedId===order.id;
     const net = order.net_order_items||[];
     const total = order.total_net_cost||0;
-    const STATUS = {draft:{label:'ร่าง',cls:'badge-stone'},confirmed:{label:'ยืนยันแล้ว',cls:'badge-moq-green'},submitted:{label:'ส่งแล้ว',cls:'badge-blue'}};
-    const st = STATUS[order.status]||STATUS.confirmed;
+    const STATUS = {
+      draft: {label:'ร่าง',cls:'badge-stone'},
+      confirmed: {label:'รอยืนยันส่ง',cls:'badge-moq-green'},
+      submitted: {label:'ส่งแล้ว (รอรับเรื่อง)',cls:'badge-blue'},
+      ordered: {label:'กำลังเตรียมการ',cls:'badge-orange'},
+      delivered: {label:'จัดส่งแล้ว',cls:'badge-moq-green'}
+    };
+    const st = STATUS[order.status]||STATUS.submitted;
 
     let detail = '';
     if(isOpen){

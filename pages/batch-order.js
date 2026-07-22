@@ -226,9 +226,9 @@ const BatchOrderPage = (() => {
         </div>
         <div>
           <div class="card" style="margin-bottom:16px">
-            <div class="card-header"><h3>ชื่อคำสั่งซื้อ</h3></div>
+            <div class="card-header"><h3>หมายเหตุ (ถ้ามี)</h3></div>
             <div class="card-body">
-              <input type="text" id="order-name-inp" value="${orderName}" placeholder="เช่น สั่งซื้อสัปดาห์ที่ 25 มิ.ย." />
+              <input type="text" id="order-name-inp" value="${orderName}" placeholder="เช่น ระบุรายละเอียดเพิ่มเติม" />
             </div>
           </div>
           <div class="card">
@@ -270,24 +270,78 @@ const BatchOrderPage = (() => {
   }
 
   function confirmOrder(){
-    if(!orderName){ UI.toast('กรุณากรอกชื่อคำสั่งซื้อ','error'); return; }
     const netItems = getNetItems();
-    const netTotal = netItems.reduce((a,i)=>a+i.netCost,0);
-    const recTotal = aggregated.reduce((a,i)=>a+i.cost,0);
-    const order = {
-      order_name: orderName,
-      daily_plan_ids: [...selectedPlanIds],
-      aggregated_items: aggregated,
-      leftover_stocks: {...leftoverStocks},
-      net_order_items: netItems,
-      total_recommended_cost: recTotal,
-      total_net_cost: netTotal,
-      status: 'confirmed',
-      confirmed_at: new Date().toISOString(),
-    };
-    DB.saveOrder(order);
-    UI.toast('ยืนยัน Batch Order เรียบร้อย');
-    // reset
+    
+    // Create a map to track total orderKg and netKg for proportional splitting
+    const batchIngMap = {};
+    aggregated.forEach(item => {
+      const net = netItems.find(n => n.ingredientId === item.ingredientId);
+      batchIngMap[item.ingredientId] = {
+        totalOrderKg: item.orderKg || 1, // avoid div by zero
+        netKg: net ? net.netKg : 0,
+        pricePerKg: item.pricePerKg
+      };
+    });
+
+    const allPlansRaw = DB.getPlans();
+
+    selectedPlanIds.forEach(id => {
+      let group = allPlansRaw.find(p => p.id === id);
+      if (!group) return;
+      const dayPlans = group.plans || [group];
+
+      dayPlans.forEach(dayPlan => {
+        const dayNetItems = (dayPlan.summary_items || []).map(dItem => {
+          const bInfo = batchIngMap[dItem.ingredientId];
+          let dNetKg = dItem.orderKg || 0;
+          let dNetCost = dItem.cost || 0;
+          let moqStatus = 'ok';
+
+          if (bInfo) {
+            const proportion = dItem.orderKg / bInfo.totalOrderKg;
+            dNetKg = bInfo.netKg * proportion;
+            dNetCost = Math.round(dNetKg * bInfo.pricePerKg);
+            const batchNetItem = netItems.find(n => n.ingredientId === dItem.ingredientId);
+            if (batchNetItem) moqStatus = batchNetItem.moqStatus;
+          }
+
+          return {
+            ...dItem,
+            leftover: 0,
+            netKg: dNetKg,
+            netCost: dNetCost,
+            moqStatus: moqStatus
+          };
+        });
+
+        const dayNetTotal = dayNetItems.reduce((a, i) => a + i.netCost, 0);
+
+        const order = {
+          order_name: `ออเดอร์วันที่ ${dayPlan.plan_date}` + (orderName ? ` - ${orderName}` : ''),
+          target_dates: [dayPlan.plan_date],
+          aggregated_items: dayPlan.summary_items || [],
+          leftover_stocks: {}, 
+          net_order_items: dayNetItems,
+          total_recommended_cost: dayPlan.total_cost,
+          total_net_cost: dayNetTotal,
+          status: 'submitted',
+          confirmed_at: new Date().toISOString()
+        };
+
+        DB.saveOrder(order);
+        dayPlan.order_status = 'submitted';
+      });
+      
+      group.order_status = 'submitted';
+      const idx = allPlansRaw.findIndex(p => p.id === group.id);
+      if (idx > -1) {
+        allPlansRaw[idx] = group;
+        const key = 'sp_daily_plans_' + (Auth.getSession()?.username || 'default');
+        localStorage.setItem(key, JSON.stringify(allPlansRaw));
+      }
+    });
+
+    UI.toast('ส่งคำสั่งซื้อรายวันเรียบร้อยแล้ว', 'success');
     step=1; selectedPlanIds=new Set(); aggregated=[]; leftoverStocks={}; orderName='';
     render(container);
   }

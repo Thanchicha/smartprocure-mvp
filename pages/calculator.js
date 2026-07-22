@@ -841,26 +841,11 @@ const CalculatorPage = (() => {
   function savePlan(status, silent = false) {
     if (!state.plans.length) return;
     
-    const group = {
-      id: state.planGroupId || 'GROUP-' + Date.now() + Math.random().toString(36).substr(2, 5),
-      status: status,
-      created_date: Date.now(),
-      updated_date: Date.now(),
-      plans: JSON.parse(JSON.stringify(state.plans)),
-    };
-    
-    if (state.plans.length > 1) {
-      group.name = `แผนชุดวันที่ ${state.plans[0].plan_date} ถึง ${state.plans[state.plans.length - 1].plan_date}`;
-      group.plan_date = `${state.plans[0].plan_date} - ${state.plans[state.plans.length - 1].plan_date}`;
-    } else {
-      group.name = `แผนวันที่ ${state.plans[0].plan_date}`;
-      group.plan_date = state.plans[0].plan_date;
-    }
-
     let grandTotalCost = 0;
     let grandTotalGuests = 0;
     const combinedItemsMap = {};
 
+    // Compute summary per day FIRST and attach to state.plans
     state.plans.forEach(planState => {
       const oldIdx = state.currentDateIdx;
       state.currentDateIdx = state.plans.indexOf(planState);
@@ -876,6 +861,9 @@ const CalculatorPage = (() => {
       const dayTotalCost = items.reduce((sum, i) => sum + i.cost, 0);
       grandTotalCost += dayTotalCost;
       
+      planState.total_cost = dayTotalCost;
+      planState.summary_items = items;
+      
       items.forEach(item => {
         if (!combinedItemsMap[item.ingredientId]) {
           combinedItemsMap[item.ingredientId] = { ...item };
@@ -888,6 +876,22 @@ const CalculatorPage = (() => {
       
       state.currentDateIdx = oldIdx;
     });
+
+    const group = {
+      id: state.planGroupId || 'GROUP-' + Date.now() + Math.random().toString(36).substr(2, 5),
+      status: status,
+      created_date: Date.now(),
+      updated_date: Date.now(),
+      plans: JSON.parse(JSON.stringify(state.plans)),
+    };
+    
+    if (state.plans.length > 1) {
+      group.name = `แผนชุดวันที่ ${state.plans[0].plan_date} ถึง ${state.plans[state.plans.length - 1].plan_date}`;
+      group.plan_date = `${state.plans[0].plan_date} - ${state.plans[state.plans.length - 1].plan_date}`;
+    } else {
+      group.name = `แผนวันที่ ${state.plans[0].plan_date}`;
+      group.plan_date = state.plans[0].plan_date;
+    }
 
     group.total_cost = grandTotalCost;
     group.total_guests = grandTotalGuests;
